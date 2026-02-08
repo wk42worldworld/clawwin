@@ -80,7 +80,7 @@ function buildContextMenu(): Menu {
 
   return Menu.buildFromTemplate([
     {
-      label: `OpenClaw: ${label}`,
+      label: `ClawWin: ${label}`,
       enabled: false,
     },
     { type: 'separator' },
@@ -159,7 +159,7 @@ function buildContextMenu(): Menu {
     },
     { type: 'separator' },
     {
-      label: 'Quit OpenClaw Desktop',
+      label: 'Quit ClawWin',
       click: () => {
         setQuitting(true);
         app.quit();
@@ -184,7 +184,7 @@ export function createTray(
 
   const icon = createTrayIcon(currentStatus);
   tray = new Tray(icon);
-  tray.setToolTip('OpenClaw Desktop');
+  tray.setToolTip('ClawWin');
   tray.setContextMenu(buildContextMenu());
 
   // Double-click toggles window visibility
@@ -214,7 +214,7 @@ export function updateTrayStatus(status: string): void {
     tray.setContextMenu(buildContextMenu());
 
     const label = STATUS_LABELS[status] || 'Unknown';
-    tray.setToolTip(`OpenClaw Desktop - ${label}`);
+    tray.setToolTip(`ClawWin - ${label}`);
   }
 }
 

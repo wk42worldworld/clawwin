@@ -1,6 +1,6 @@
-appId: com.openclaw.desktop
-productName: OpenClaw Desktop
-copyright: Copyright (c) 2024 OpenClaw Team
+appId: com.clawwin.app
+productName: ClawWin
+copyright: Copyright (c) 2024 ClawWin Team
 
 directories:
   output: release
@@ -37,11 +37,11 @@ nsis:
   allowElevation: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: OpenClaw Desktop
+  shortcutName: ClawWin
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
   license: LICENSE
-  artifactName: "OpenClaw-Desktop-Setup-${version}.${ext}"
+  artifactName: "ClawWin-Setup-${version}.${ext}"
 
 publish:
   provider: generic

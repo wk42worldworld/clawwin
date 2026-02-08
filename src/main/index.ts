@@ -18,7 +18,7 @@ import { StoreSchema, setQuitting, getQuitting } from './store-schema';
 // ─── Logging Configuration ──────────────────────────────────────
 log.transports.file.level = 'info';
 log.transports.console.level = 'debug';
-log.info('OpenClaw Desktop starting...');
+log.info('ClawWin starting...');
 
 // ─── Persistent Settings Store ──────────────────────────────────
 const store = new Store<StoreSchema>({
@@ -59,7 +59,7 @@ function createMainWindow(): BrowserWindow {
     height: Math.min(savedBounds.height, screenHeight),
     minWidth: 900,
     minHeight: 600,
-    title: 'OpenClaw Desktop',
+    title: 'ClawWin',
     icon: path.join(__dirname, '..', '..', 'resources', 'icon.png'),
     backgroundColor: '#1a1a2e',
     show: false,

@@ -1,9 +1,9 @@
 {
   "name": "openclaw-desktop",
   "version": "1.0.0",
-  "description": "OpenClaw Desktop - AI assistant powered by WSL2 for Windows",
+  "description": "ClawWin - AI assistant powered by WSL2 for Windows",
   "main": "dist/main/index.js",
-  "author": "OpenClaw Team",
+  "author": "ClawWin Team",
   "license": "MIT",
   "scripts": {
     "start": "tsc && electron .",
