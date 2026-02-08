@@ -6,7 +6,7 @@
  * wizard on first launch, or the main dashboard otherwise.
  */
 
-import { app, BrowserWindow, screen, shell, session } from 'electron';
+import { app, BrowserWindow, screen, shell, session, Menu } from 'electron';
 import * as path from 'path';
 import log from 'electron-log';
 import Store from 'electron-store';
@@ -60,6 +60,7 @@ function createMainWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     title: 'OpenClaw Desktop',
+    icon: path.join(__dirname, '..', '..', 'resources', 'icon.png'),
     backgroundColor: '#1a1a2e',
     show: false,
     webPreferences: {
@@ -204,6 +205,9 @@ async function initializeApp(): Promise<void> {
 
   // Register IPC handlers so the renderer can communicate with the main process
   registerIPCHandlers(wslManager, store, () => mainWindow);
+
+  // Remove default menu bar (File, Edit, View, etc.)
+  Menu.setApplicationMenu(null);
 
   // Create the main browser window
   mainWindow = createMainWindow();

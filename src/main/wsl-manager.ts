@@ -1017,7 +1017,7 @@ export class WSLManager extends EventEmitter {
    * Get the gateway web UI URL
    */
   getWebUIUrl(): string {
-    return `http://127.0.0.1:${this.GATEWAY_PORT}`;
+    return `http://127.0.0.1:${this.GATEWAY_PORT}/?token=${this.GATEWAY_TOKEN}`;
   }
 }
 

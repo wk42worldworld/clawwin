@@ -103,6 +103,10 @@
           <span class="icon">&#43;</span>
           <span data-i18n="chat.new">New Chat</span>
         </button>
+        <button id="btn-webui" class="chat-new-btn" title="Open WebUI">
+          <span class="icon">&#127760;</span>
+          <span data-i18n="chat.webui">WebUI</span>
+        </button>
         <button id="btn-back" class="chat-new-btn" title="Dashboard">
           <span class="icon">&#8592;</span>
           <span data-i18n="chat.back">Dashboard</span>
@@ -139,12 +143,6 @@
       <div class="chat-empty-icon">&#128172;</div>
       <div class="chat-empty-title" data-i18n="chat.empty.title">Start a New Conversation</div>
       <div class="chat-empty-subtitle" data-i18n="chat.empty.subtitle">Send a message to start chatting with AI</div>
-      <div class="chat-empty-suggestions">
-        <button class="chat-empty-suggestion" data-suggestion="1" data-i18n="chat.empty.suggestion1">Explain quantum computing</button>
-        <button class="chat-empty-suggestion" data-suggestion="2" data-i18n="chat.empty.suggestion2">Write a Python script</button>
-        <button class="chat-empty-suggestion" data-suggestion="3" data-i18n="chat.empty.suggestion3">Help me debug code</button>
-        <button class="chat-empty-suggestion" data-suggestion="4" data-i18n="chat.empty.suggestion4">Translate to English</button>
-      </div>
     </div>
 
     <!-- Chat Input Area -->
@@ -196,6 +194,7 @@
       var connectionStatus = document.getElementById('connection-status');
       var modelBadge = document.getElementById('model-badge');
       var btnNewChat = document.getElementById('btn-new-chat');
+      var btnWebUI = document.getElementById('btn-webui');
       var btnBack = document.getElementById('btn-back');
       var btnSettings = document.getElementById('btn-settings');
 
@@ -1023,6 +1022,14 @@
         newChat();
       });
 
+      btnWebUI.addEventListener('click', function () {
+        if (window.openclaw && window.openclaw.getWebUIUrl) {
+          window.openclaw.getWebUIUrl().then(function (url) {
+            window.open(url, '_blank');
+          });
+        }
+      });
+
       btnBack.addEventListener('click', function () {
         window.location.href = 'index.html';
       });
@@ -1042,18 +1049,6 @@
       sidebarOverlay.addEventListener('click', function () {
         closeSidebar();
       });
-
-      // Suggestion chips
-      var suggestions = document.querySelectorAll('.chat-empty-suggestion');
-      for (var i = 0; i < suggestions.length; i++) {
-        suggestions[i].addEventListener('click', function () {
-          var text = this.textContent;
-          chatInput.value = text;
-          autoGrowTextarea();
-          updateSendButton();
-          sendMessage(text);
-        });
-      }
 
       // ─── Startup Overlay ──────────────────────────────────────
       var startupOverlay = document.getElementById('startup-overlay');
