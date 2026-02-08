@@ -315,8 +315,12 @@
 
         if (wslReady) {
           statusMsg.textContent = I18n.t("wizard.check.allpassed");
-          btnNext.disabled = false;
           btnInstall.classList.add("hidden");
+          // Auto-advance to Step 3 after a brief pause
+          setTimeout(function () {
+            showStep(3);
+            runInstallation();
+          }, 500);
         } else {
           statusMsg.textContent = I18n.t("wizard.check.failed");
           btnNext.disabled = true;
@@ -406,10 +410,11 @@
             restartBox.classList.remove("hidden");
             btnRestart.classList.remove("hidden");
             btn.classList.add("hidden");
-            // Keep install button hidden, show restart button
           } else if (result.success) {
+            // WSL ready — auto-advance to Step 3 (install distro)
             statusMsg.textContent = I18n.t("wizard.check.installed");
-            await runWslChecks();
+            showStep(3);
+            runInstallation();
           } else {
             statusMsg.textContent = I18n.t("wizard.check.install.failed") + "Unknown error";
           }
