@@ -99,7 +99,7 @@
             </div>
             <div class="check-item" id="check-distro">
               <span class="check-icon check-pending">&#8987;</span>
-              <span class="check-text" data-i18n="wizard.check.distro">Linux distribution installed</span>
+              <span class="check-text" data-i18n="wizard.check.distro">ClawWin environment (will be installed next)</span>
             </div>
           </div>
           <div class="status-message" id="wsl-status-message" data-i18n="wizard.check.running">
@@ -271,7 +271,7 @@
         var statusMsg = document.getElementById("wsl-status-message");
         var btnNext = document.getElementById("btn-next-2");
         var btnInstall = document.getElementById("btn-install-wsl");
-        var allPassed = true;
+        var wslReady = true; // WSL2 infrastructure (features + kernel)
 
         statusMsg.textContent = I18n.t("wizard.check.running");
 
@@ -282,38 +282,38 @@
             setCheckStatus("check-wsl-feature", "pass");
           } else {
             setCheckStatus("check-wsl-feature", "fail");
-            allPassed = false;
+            wslReady = false;
           }
 
           if (result.vmPlatformEnabled) {
             setCheckStatus("check-vm-platform", "pass");
           } else {
             setCheckStatus("check-vm-platform", "fail");
-            allPassed = false;
+            wslReady = false;
           }
 
           if (result.wslVersion && parseInt(result.wslVersion, 10) >= 2) {
             setCheckStatus("check-wsl-version", "pass");
           } else {
             setCheckStatus("check-wsl-version", "fail");
-            allPassed = false;
+            wslReady = false;
           }
 
+          // Distro check is informational — distro gets imported in Step 3
           if (result.distroExists) {
             setCheckStatus("check-distro", "pass");
           } else {
-            setCheckStatus("check-distro", "fail");
-            allPassed = false;
+            setCheckStatus("check-distro", "pending");
           }
         } catch (err) {
           setCheckStatus("check-wsl-feature", "fail");
           setCheckStatus("check-vm-platform", "fail");
           setCheckStatus("check-wsl-version", "fail");
           setCheckStatus("check-distro", "fail");
-          allPassed = false;
+          wslReady = false;
         }
 
-        if (allPassed) {
+        if (wslReady) {
           statusMsg.textContent = I18n.t("wizard.check.allpassed");
           btnNext.disabled = false;
           btnInstall.classList.add("hidden");
