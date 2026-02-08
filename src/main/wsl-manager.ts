@@ -249,47 +249,42 @@ export class WSLManager extends EventEmitter {
     // Try modern approach first: wsl --install --no-distribution
     // This enables features, installs the kernel, and sets WSL2 as default
     try {
-      const { stdout } = await execFileAsync('wsl.exe', [
+      await execFileAsync('wsl.exe', [
         '--install', '--no-distribution',
       ], { timeout: 120000, windowsHide: true });
-      log.info('wsl --install output:', stdout);
-
-      // Check if restart is needed
-      const needsRestart = stdout.toLowerCase().includes('restart') ||
-                           stdout.includes('重新启动') ||
-                           stdout.includes('重启');
-      return { success: true, needsRestart };
+      log.info('wsl --install completed');
     } catch (err: any) {
-      // wsl --install may exit with non-zero but still succeed
-      const output = (err.stdout || '') + (err.stderr || '');
-      if (output.toLowerCase().includes('restart') || output.includes('重新启动') || output.includes('重启')) {
-        log.info('wsl --install requires restart');
-        return { success: true, needsRestart: true };
-      }
-      log.warn('wsl --install failed, falling back to manual approach:', err.message);
+      // wsl --install may exit with non-zero but still make changes
+      log.warn('wsl --install exited with error (may still have enabled features):', err.message);
     }
 
-    // Fallback: enable features via PowerShell + install kernel MSI
+    // After attempting install, check if features are actually enabled
+    const features = await this.checkWindowsFeatures();
+    if (features.wsl && features.vmPlatform) {
+      // Features are enabled — no restart needed, install succeeded
+      log.info('WSL2 features confirmed enabled');
+      await this.setDefaultVersion();
+      return { success: true, needsRestart: false };
+    }
+
+    // Features not yet active — could be EnablePending (needs restart)
+    // Try the PowerShell fallback to enable any remaining features
     const featureResult = await this.enableWSLFeatures();
     if (!featureResult.success) {
       return { success: false, needsRestart: false };
     }
 
-    // If features were just enabled and need restart, return immediately
-    // (kernel install should happen after reboot)
     if (featureResult.needsRestart) {
       return { success: true, needsRestart: true };
     }
 
-    // Features already enabled, try installing kernel
+    // Features enabled without restart — install kernel if needed
     const kernelInstalled = await this.installWSLKernel();
     if (!kernelInstalled) {
       log.warn('WSL kernel install failed/skipped — may already be present');
     }
 
-    // Set WSL2 as default version
     await this.setDefaultVersion();
-
     return { success: true, needsRestart: false };
   }
 
@@ -380,12 +375,50 @@ export class WSLManager extends EventEmitter {
       );
       log.info('Distro imported successfully');
       this.emit('import-progress', 'Import complete');
+
+      // Clean up stale state from the pre-built image
+      await this.cleanupAfterImport();
+
       return true;
     } catch (err: any) {
       log.error('Failed to import distro:', err);
       this.emit('import-error', err.message);
       return false;
     }
+  }
+
+  /**
+   * Clean up stale state from pre-built image after import.
+   * - Remove baked-in API keys (new user will set their own in wizard Step 4)
+   * - Remove stale PID/lock files
+   * - Reset systemd service state so it starts cleanly
+   */
+  private async cleanupAfterImport(): Promise<void> {
+    log.info('Cleaning up stale state from imported image...');
+    this.emit('import-progress', 'Cleaning up image...');
+
+    const cleanupCommands = [
+      // Remove any baked-in API keys from the image builder's environment
+      'rm -f ~/.openclaw/env',
+      // Remove systemd service override (env file reference) - will be recreated
+      'rm -rf ~/.config/systemd/user/openclaw-gateway.service.d',
+      // Remove stale PID/lock files (typically in tmpfs but just in case)
+      'rm -f /tmp/openclaw-gateway.pid /var/run/openclaw*.pid',
+      // Reset systemd user service state
+      'systemctl --user daemon-reload 2>/dev/null || true',
+      'systemctl --user reset-failed openclaw-gateway.service 2>/dev/null || true',
+    ];
+
+    for (const cmd of cleanupCommands) {
+      try {
+        await this.execInDistro(cmd, { timeout: 10000 });
+      } catch {
+        // Non-fatal - some commands may fail on fresh import (systemd not started yet)
+      }
+    }
+
+    log.info('Post-import cleanup complete');
+    this.emit('import-progress', 'Cleanup complete');
   }
 
   /**
