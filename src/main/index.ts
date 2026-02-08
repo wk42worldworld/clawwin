@@ -95,7 +95,7 @@ function createMainWindow(): BrowserWindow {
   if (isFirstLaunch) {
     win.loadFile(getRendererPath('wizard.html'));
   } else {
-    win.loadFile(getRendererPath('index.html'));
+    win.loadFile(getRendererPath('chat.html'));
   }
 
   // Show window after content is ready to avoid white flash

@@ -288,6 +288,20 @@ export function registerIPCHandlers(
   });
 
   /**
+   * configure-workspace: Sets OpenClaw's workspace to a Windows path.
+   * Defaults to the user's Desktop if no path is provided.
+   */
+  ipcMain.handle('configure-workspace', async (_event, windowsPath?: string): Promise<boolean> => {
+    log.info('IPC: configure-workspace', windowsPath || '(default: Desktop)');
+    try {
+      return await wslManager.configureWorkspace(windowsPath);
+    } catch (err: any) {
+      log.error('IPC: configure-workspace error:', err);
+      return false;
+    }
+  });
+
+  /**
    * get-locale: Returns the system locale (e.g., "zh-CN", "en-US").
    */
   ipcMain.handle('get-locale', async (): Promise<string> => {

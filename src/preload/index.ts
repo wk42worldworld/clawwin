@@ -102,6 +102,9 @@ const openclawAPI = {
   checkGatewayConnectivity: (): Promise<boolean> =>
     ipcRenderer.invoke('check-gateway-connectivity'),
 
+  configureWorkspace: (windowsPath?: string): Promise<boolean> =>
+    ipcRenderer.invoke('configure-workspace', windowsPath),
+
   getLocale: (): Promise<string> =>
     ipcRenderer.invoke('get-locale'),
 

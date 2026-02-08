@@ -8,6 +8,87 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Startup Loading Overlay -->
+  <div id="startup-overlay" class="startup-overlay">
+    <div class="startup-content">
+      <div class="startup-logo">OpenClaw</div>
+      <div class="startup-spinner">
+        <div class="startup-spinner-ring"></div>
+      </div>
+      <div id="startup-status" class="startup-status" data-i18n="chat.startup.loading">Starting OpenClaw...</div>
+      <button id="startup-retry" class="startup-retry hidden" data-i18n="chat.startup.retry">Retry</button>
+    </div>
+  </div>
+
+  <style>
+    .startup-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #1a1a2e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+    .startup-overlay.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .startup-overlay.hidden {
+      display: none;
+    }
+    .startup-content {
+      text-align: center;
+    }
+    .startup-logo {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #e0e0e0;
+      margin-bottom: 2rem;
+      letter-spacing: 2px;
+    }
+    .startup-spinner {
+      display: inline-block;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 1.5rem;
+    }
+    .startup-spinner-ring {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(255,255,255,0.1);
+      border-top-color: #7c5cfc;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .startup-status {
+      color: #888;
+      font-size: 0.95rem;
+    }
+    .startup-retry {
+      margin-top: 1rem;
+      padding: 8px 24px;
+      background: #7c5cfc;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .startup-retry:hover {
+      background: #6a4de0;
+    }
+    .startup-retry.hidden {
+      display: none;
+    }
+    .startup-overlay.error .startup-spinner { display: none; }
+    .startup-overlay.error .startup-status { color: #e05555; }
+  </style>
+
   <div class="chat-container">
     <!-- Chat Header -->
     <div class="chat-header">
@@ -658,8 +739,15 @@
             isAuthenticated = true;
             updateConnectionStatus('connected');
             updateSendButton();
+            hideStartupOverlay();
             loadModelInfo();
-            loadHistory();
+            // Start with a clean session on first connect
+            sendRequest('chat.new', { sessionKey: SESSION_KEY }).then(function () {
+              updateEmptyState();
+            }).catch(function () {
+              // If chat.new fails, load existing history as fallback
+              loadHistory();
+            });
           },
           reject: function (err) {
             updateConnectionStatus('disconnected');
@@ -691,6 +779,9 @@
             messages = [];
             for (var i = 0; i < result.messages.length; i++) {
               var m = result.messages[i];
+              var role = m.role || 'assistant';
+              // Only show user and assistant messages; skip system, tool, etc.
+              if (role !== 'user' && role !== 'assistant') continue;
               var content = '';
               if (m.content) {
                 if (typeof m.content === 'string') {
@@ -703,9 +794,11 @@
                   }
                 }
               }
+              // Skip messages with no visible text content (e.g. tool-only messages)
+              if (!content.trim()) continue;
               messages.push({
                 id: m.id || generateId(),
-                role: m.role || 'assistant',
+                role: role,
                 content: content
               });
             }
@@ -962,21 +1055,74 @@
         });
       }
 
+      // ─── Startup Overlay ──────────────────────────────────────
+      var startupOverlay = document.getElementById('startup-overlay');
+      var startupStatus = document.getElementById('startup-status');
+      var startupRetry = document.getElementById('startup-retry');
+      var overlayVisible = true;
+
+      function updateStartupStatus(msgKey) {
+        if (startupStatus) {
+          startupStatus.textContent = I18n.t(msgKey);
+        }
+      }
+
+      function hideStartupOverlay() {
+        if (!overlayVisible) return;
+        overlayVisible = false;
+        if (startupOverlay) {
+          startupOverlay.classList.add('fade-out');
+          setTimeout(function () {
+            startupOverlay.classList.add('hidden');
+          }, 500);
+        }
+      }
+
+      function showStartupError() {
+        if (startupOverlay) {
+          startupOverlay.classList.add('error');
+          updateStartupStatus('chat.startup.error');
+          startupRetry.classList.remove('hidden');
+        }
+      }
+
+      if (startupRetry) {
+        startupRetry.addEventListener('click', function () {
+          startupOverlay.classList.remove('error');
+          startupRetry.classList.add('hidden');
+          updateStartupStatus('chat.startup.loading');
+          initConnection();
+        });
+      }
+
       // ─── Initial Setup ────────────────────────────────────────
       updateEmptyState();
       chatInput.focus();
 
       // Check gateway status before attempting WebSocket connection
+      var initRetryCount = 0;
+      var MAX_INIT_RETRIES = 60; // ~3 minutes at 3s intervals
       function initConnection() {
         if (window.openclaw && window.openclaw.getStatus) {
           window.openclaw.getStatus().then(function (result) {
             console.log('[Chat] Gateway status:', result.status);
             if (result.status === 'running') {
+              if (overlayVisible) {
+                updateStartupStatus('chat.startup.connecting');
+              }
               connect();
             } else {
+              if (overlayVisible) {
+                updateStartupStatus('chat.startup.starting');
+              }
               updateConnectionStatus('disconnected');
               console.log('[Chat] Gateway not running, will retry...');
-              setTimeout(initConnection, 3000);
+              initRetryCount++;
+              if (initRetryCount >= MAX_INIT_RETRIES) {
+                showStartupError();
+              } else {
+                setTimeout(initConnection, 3000);
+              }
             }
           }).catch(function (err) {
             console.error('[Chat] Failed to check gateway status:', err);
@@ -993,13 +1139,21 @@
           console.log('[Chat] Gateway status changed:', status);
           if (status === 'running' && !isConnected) {
             // Gateway just became available, try connecting
+            if (overlayVisible) {
+              updateStartupStatus('chat.startup.connecting');
+            }
             if (reconnectTimer) {
               clearTimeout(reconnectTimer);
               reconnectTimer = null;
             }
             connect();
+          } else if (status === 'starting' && overlayVisible) {
+            updateStartupStatus('chat.startup.starting');
           } else if (status === 'stopped' || status === 'error') {
             updateConnectionStatus('disconnected');
+            if (overlayVisible && status === 'error') {
+              showStartupError();
+            }
           }
         });
       }

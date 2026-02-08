@@ -17,6 +17,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as net from 'net';
 import * as http from 'http';
+import * as os from 'os';
 import log from 'electron-log';
 
 const execFileAsync = promisify(execFile);
@@ -342,6 +343,8 @@ export class WSLManager extends EventEmitter {
       await this.execInDistro(
         `openclaw config set gateway.controlUi.allowedOrigins '["*", "null", "file://"]'`
       );
+      // Configure workspace to access Windows Desktop via WSL2 mount
+      await this.configureDesktopWorkspace();
     } catch (err) {
       log.warn('Failed to set gateway config defaults:', err);
     }
@@ -918,6 +921,57 @@ export class WSLManager extends EventEmitter {
       return true;
     } catch (err: any) {
       log.error('Failed to configure OpenClaw:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Convert a Windows path to its WSL2 mount equivalent.
+   * e.g. C:\Users\wangkai\Desktop -> /mnt/c/Users/wangkai/Desktop
+   */
+  private windowsPathToWSL(winPath: string): string {
+    // Handle drive letter: C:\... -> /mnt/c/...
+    const normalized = winPath.replace(/\\/g, '/');
+    const match = normalized.match(/^([A-Za-z]):\/(.*)/);
+    if (match) {
+      return `/mnt/${match[1].toLowerCase()}/${match[2]}`;
+    }
+    return normalized;
+  }
+
+  /**
+   * Configure workspace to point to the Windows Desktop via WSL2 mount.
+   * Called automatically during gateway startup.
+   */
+  private async configureDesktopWorkspace(): Promise<void> {
+    try {
+      const desktopPath = path.join(os.homedir(), 'Desktop');
+      const wslPath = this.windowsPathToWSL(desktopPath);
+      log.info(`Configuring workspace to Windows Desktop: ${wslPath}`);
+      await this.execInDistro(
+        `openclaw config set agents.defaults.workspace '${wslPath}'`
+      );
+      log.info('Desktop workspace configured');
+    } catch (err) {
+      log.warn('Failed to configure desktop workspace:', err);
+    }
+  }
+
+  /**
+   * Configure OpenClaw workspace to a specific Windows path.
+   * Converts the Windows path to WSL mount path automatically.
+   */
+  async configureWorkspace(windowsPath?: string): Promise<boolean> {
+    try {
+      const targetPath = windowsPath || path.join(os.homedir(), 'Desktop');
+      const wslPath = this.windowsPathToWSL(targetPath);
+      log.info(`Configuring workspace to: ${wslPath}`);
+      await this.execInDistro(
+        `openclaw config set agents.defaults.workspace '${wslPath}'`
+      );
+      return true;
+    } catch (err: any) {
+      log.error('Failed to configure workspace:', err);
       return false;
     }
   }
