@@ -333,10 +333,23 @@ export class WSLManager extends EventEmitter {
   // ─── Distro Management ───────────────────────────────────────
 
   /**
-   * Import pre-built OpenClaw image (offline)
+   * Import pre-built OpenClaw image (offline).
+   * Looks for openclaw.tar.gz first, then openclaw.tar.
    */
   async importDistro(imagePath?: string): Promise<boolean> {
-    const tarPath = imagePath || path.join(this.resourcesDir, 'image', 'openclaw.tar.gz');
+    let tarPath = imagePath || '';
+    if (!tarPath) {
+      // Try compressed first, then uncompressed
+      const gzPath = path.join(this.resourcesDir, 'image', 'openclaw.tar.gz');
+      const plainPath = path.join(this.resourcesDir, 'image', 'openclaw.tar');
+      if (fs.existsSync(gzPath)) {
+        tarPath = gzPath;
+      } else if (fs.existsSync(plainPath)) {
+        tarPath = plainPath;
+      } else {
+        tarPath = gzPath; // Will fail below with a clear error
+      }
+    }
     const wslDir = path.join(this.dataDir, 'wsl');
 
     if (!fs.existsSync(tarPath)) {
