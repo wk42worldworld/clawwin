@@ -1,0 +1,31 @@
+{
+  "name": "openclaw-desktop",
+  "version": "1.0.0",
+  "description": "OpenClaw Desktop - AI assistant powered by WSL2 for Windows",
+  "main": "dist/main/index.js",
+  "author": "OpenClaw Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "tsc && electron .",
+    "build": "tsc",
+    "dist": "tsc && electron-builder --win",
+    "dev": "tsc --watch & electron .",
+    "clean": "rimraf dist",
+    "rebuild": "npm run clean && npm run build",
+    "pack": "tsc && electron-builder --win --dir"
+  },
+  "dependencies": {
+    "electron-log": "^5.3.0",
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.7.0"
+  },
+  "build": {
+    "extends": "electron-builder.yml"
+  }
+}

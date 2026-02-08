@@ -1,0 +1,48 @@
+appId: com.openclaw.desktop
+productName: OpenClaw Desktop
+copyright: Copyright (c) 2024 OpenClaw Team
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - src/renderer/**/*
+  - "!**/*.ts"
+  - "!**/*.map"
+
+extraResources:
+  - from: scripts/
+    to: scripts/
+    filter:
+      - "**/*"
+  - from: image/
+    to: image/
+    filter:
+      - "**/*"
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+  requestedExecutionLevel: requireAdministrator
+
+nsis:
+  oneClick: false
+  perMachine: true
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: OpenClaw Desktop
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  license: LICENSE
+  artifactName: "OpenClaw-Desktop-Setup-${version}.${ext}"
+
+publish:
+  provider: generic
+  url: https://releases.openclaw.dev/desktop

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+*.map
+.env
+*.log
+image/
+wsl/
+nul
+*.tar
+*.tar.gz
+installer/

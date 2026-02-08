@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
+  <title>OpenClaw Desktop</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="header-brand">
+        <h1 class="app-title" data-i18n="app.title">OpenClaw Desktop</h1>
+        <span class="app-subtitle" data-i18n="app.subtitle">AI Assistant for Windows</span>
+      </div>
+      <div class="header-actions">
+        <button id="btn-chat" class="btn btn-primary btn-small" data-i18n="chat.title">Chat</button>
+        <button id="btn-lang" class="btn btn-small" title="Switch Language">EN</button>
+        <button id="btn-settings" class="btn btn-icon" data-i18n-title="settings" title="Settings">
+          <span class="icon">&#9881;</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="status-panel">
+        <h2 class="section-title" data-i18n="section.status">System Status</h2>
+        <div class="status-grid">
+          <div class="status-card" id="wsl-status-card">
+            <div class="status-indicator" id="wsl-indicator"></div>
+            <div class="status-info">
+              <span class="status-label" data-i18n="status.wsl2">WSL2</span>
+              <span class="status-value" id="wsl-status-text" data-i18n="status.checking">Checking...</span>
+            </div>
+          </div>
+          <div class="status-card" id="claw-status-card">
+            <div class="status-indicator" id="claw-indicator"></div>
+            <div class="status-info">
+              <span class="status-label" data-i18n="status.openclaw">OpenClaw Service</span>
+              <span class="status-value" id="claw-status-text" data-i18n="status.checking">Checking...</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="controls-panel">
+        <h2 class="section-title" data-i18n="section.controls">Controls</h2>
+        <div class="controls-grid">
+          <button id="btn-start" class="btn btn-primary btn-large">
+            <span class="btn-icon-text">&#9654;</span> <span data-i18n="btn.start">Start OpenClaw</span>
+          </button>
+          <button id="btn-stop" class="btn btn-danger btn-large">
+            <span class="btn-icon-text">&#9632;</span> <span data-i18n="btn.stop">Stop OpenClaw</span>
+          </button>
+          <button id="btn-restart" class="btn btn-secondary btn-large">
+            <span class="btn-icon-text">&#8635;</span> <span data-i18n="btn.restart">Restart</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="logs-panel">
+        <div class="logs-header">
+          <h2 class="section-title" data-i18n="section.logs">Logs</h2>
+          <button id="btn-clear-logs" class="btn btn-small" data-i18n="btn.clear">Clear</button>
+        </div>
+        <div class="logs-container">
+          <pre id="log-output" class="log-output"></pre>
+        </div>
+      </section>
+    </main>
+
+    <!-- Global Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="loading-spinner-container">
+        <div class="loading-spinner"></div>
+        <span id="loading-text" class="loading-text"></span>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-overlay" class="settings-overlay hidden">
+      <div class="settings-modal">
+        <div class="settings-header">
+          <h2 data-i18n="settings.title">Settings</h2>
+          <button id="settings-close" class="btn btn-icon">&times;</button>
+        </div>
+        <div class="settings-body">
+          <!-- AI Provider Configuration -->
+          <div class="settings-section">
+            <h3 data-i18n="settings.aiconfig">AI Provider Configuration</h3>
+            <div class="form-group">
+              <label data-i18n="settings.provider">AI Provider</label>
+              <select id="settings-provider" class="form-select">
+                <option value="moonshot">Moonshot (Kimi)</option>
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="openai">OpenAI (GPT)</option>
+                <option value="google">Google (Gemini)</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="zai">ZAI (GLM)</option>
+                <option value="minimax">MiniMax</option>
+                <option value="groq">Groq</option>
+                <option value="ollama">Ollama (Local)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label data-i18n="settings.apikey">API Key</label>
+              <input type="password" id="settings-apikey" class="form-input" placeholder="Enter your API key..." data-i18n-placeholder="settings.apikey.placeholder">
+            </div>
+            <div class="form-group">
+              <label data-i18n="settings.model">Default Model</label>
+              <select id="settings-model" class="form-select"></select>
+            </div>
+          </div>
+
+          <!-- Language Settings -->
+          <div class="settings-section">
+            <h3 data-i18n="settings.language.title">Language Settings</h3>
+            <div class="form-group">
+              <label data-i18n="language">Language</label>
+              <select id="settings-language" class="form-select">
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Gateway Settings -->
+          <div class="settings-section">
+            <h3 data-i18n="settings.gateway.title">Gateway Settings</h3>
+            <div class="form-group">
+              <label data-i18n="settings.gateway.autostart">Auto-start gateway on launch</label>
+              <select id="settings-autostart" class="form-select">
+                <option value="true">ON</option>
+                <option value="false">OFF</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Re-run wizard -->
+          <div class="settings-section">
+            <button id="settings-reset-wizard" class="btn btn-secondary" style="width:100%">
+              <span>&#128260;</span> <span data-i18n="settings.reset.wizard">Re-run Setup Wizard</span>
+            </button>
+          </div>
+        </div>
+        <div class="settings-footer">
+          <span id="settings-status" class="settings-status"></span>
+          <div class="settings-footer-buttons">
+            <button id="settings-cancel" class="btn btn-secondary" data-i18n="settings.cancel">Cancel</button>
+            <button id="settings-save" class="btn btn-primary" data-i18n="settings.save">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="app-footer">
+      <span id="app-version" data-i18n="app.version">OpenClaw Desktop v1.0.0</span>
+      <span class="footer-separator">|</span>
+      <a href="#" id="link-docs" class="footer-link" data-i18n="footer.docs">Documentation</a>
+      <span class="footer-separator">|</span>
+      <a href="#" id="link-github" class="footer-link" data-i18n="footer.github">GitHub</a>
+    </footer>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script>
+    (function () {
+      var api = window.openclaw;
+
+      var wslIndicator = document.getElementById("wsl-indicator");
+      var wslStatusText = document.getElementById("wsl-status-text");
+      var clawIndicator = document.getElementById("claw-indicator");
+      var clawStatusText = document.getElementById("claw-status-text");
+      var logOutput = document.getElementById("log-output");
+      var loadingOverlay = document.getElementById("loading-overlay");
+      var loadingText = document.getElementById("loading-text");
+
+      function showLoading(text) {
+        loadingText.textContent = text || "";
+        loadingOverlay.classList.remove("hidden");
+      }
+
+      function hideLoading() {
+        loadingOverlay.classList.add("hidden");
+      }
+
+      logOutput.textContent = I18n.t("logs.waiting");
+
+      // Initialize i18n
+      I18n.init();
+
+      if (!api) {
+        console.warn("OpenClaw API not available - running outside Electron context");
+        return;
+      }
+
+      function setIndicator(element, status) {
+        element.className = "status-indicator";
+        element.classList.add("status-" + status);
+      }
+
+      function appendLog(message) {
+        var timestamp = new Date().toLocaleTimeString();
+        logOutput.textContent += "\n[" + timestamp + "] " + message;
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+
+      async function refreshStatus() {
+        try {
+          var env = await api.checkEnv();
+          if (env && env.distroRunning) {
+            setIndicator(wslIndicator, "active");
+            wslStatusText.textContent = I18n.t("status.running");
+          } else if (env && env.distroExists) {
+            setIndicator(wslIndicator, "idle");
+            wslStatusText.textContent = I18n.t("status.installed.stopped");
+          } else {
+            setIndicator(wslIndicator, "error");
+            wslStatusText.textContent = I18n.t("status.not.installed");
+          }
+        } catch (err) {
+          setIndicator(wslIndicator, "error");
+          wslStatusText.textContent = I18n.t("status.error.checking");
+        }
+
+        try {
+          var clawResult = await api.getStatus();
+          if (clawResult && clawResult.status === "running") {
+            setIndicator(clawIndicator, "active");
+            var port = clawResult.info && clawResult.info.port ? clawResult.info.port : "unknown";
+            clawStatusText.textContent = I18n.t("status.active.port", { port: port });
+          } else {
+            setIndicator(clawIndicator, "idle");
+            clawStatusText.textContent = I18n.t("status.stopped");
+          }
+        } catch (err) {
+          setIndicator(clawIndicator, "error");
+          clawStatusText.textContent = I18n.t("status.error.checking");
+        }
+      }
+
+      document.getElementById("btn-start").addEventListener("click", async function () {
+        showLoading(I18n.t("logs.starting"));
+        appendLog(I18n.t("logs.starting"));
+        try {
+          await api.startGateway();
+          appendLog(I18n.t("logs.started"));
+          await refreshStatus();
+        } catch (err) {
+          appendLog(I18n.t("logs.error.start") + err.message);
+        } finally {
+          hideLoading();
+        }
+      });
+
+      document.getElementById("btn-stop").addEventListener("click", async function () {
+        showLoading(I18n.t("logs.stopping"));
+        appendLog(I18n.t("logs.stopping"));
+        try {
+          await api.stopGateway();
+          appendLog(I18n.t("logs.stopped"));
+          await refreshStatus();
+        } catch (err) {
+          appendLog(I18n.t("logs.error.stop") + err.message);
+        } finally {
+          hideLoading();
+        }
+      });
+
+      document.getElementById("btn-restart").addEventListener("click", async function () {
+        showLoading(I18n.t("logs.restarting"));
+        appendLog(I18n.t("logs.restarting"));
+        try {
+          await api.restartGateway();
+          appendLog(I18n.t("logs.restarted"));
+          await refreshStatus();
+        } catch (err) {
+          appendLog(I18n.t("logs.error.restart") + err.message);
+        } finally {
+          hideLoading();
+        }
+      });
+
+      document.getElementById("btn-clear-logs").addEventListener("click", function () {
+        logOutput.textContent = I18n.t("logs.cleared");
+      });
+
+      // ─── Settings Modal ──────────────────────────────────────
+      var settingsOverlay = document.getElementById("settings-overlay");
+      var settingsProvider = document.getElementById("settings-provider");
+      var settingsApiKey = document.getElementById("settings-apikey");
+      var settingsModel = document.getElementById("settings-model");
+      var settingsLang = document.getElementById("settings-language");
+      var settingsAutostart = document.getElementById("settings-autostart");
+      var settingsStatus = document.getElementById("settings-status");
+
+      var PROVIDER_MODELS = {
+        moonshot: [
+          { value: "moonshot/kimi-k2.5", label: "Kimi K2.5" }
+        ],
+        anthropic: [
+          { value: "anthropic/claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
+          { value: "anthropic/claude-opus-4-20250514", label: "Claude Opus 4" },
+          { value: "anthropic/claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5" },
+          { value: "anthropic/claude-3-5-haiku-latest", label: "Claude 3.5 Haiku" }
+        ],
+        openai: [
+          { value: "openai/gpt-4o", label: "GPT-4o" },
+          { value: "openai/gpt-4.1", label: "GPT-4.1" },
+          { value: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini" },
+          { value: "openai/gpt-4o-mini", label: "GPT-4o Mini" }
+        ],
+        google: [
+          { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+          { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+          { value: "google/gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+          { value: "google/gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" }
+        ],
+        openrouter: [
+          { value: "openrouter/anthropic/claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
+          { value: "openrouter/deepseek/deepseek-chat", label: "DeepSeek Chat" },
+          { value: "openrouter/deepseek/deepseek-r1", label: "DeepSeek R1" },
+          { value: "openrouter/google/gemini-2.5-pro", label: "Gemini 2.5 Pro" }
+        ],
+        zai: [
+          { value: "zai/glm-4.7", label: "GLM-4.7" },
+          { value: "zai/glm-4.6", label: "GLM-4.6" },
+          { value: "zai/glm-4.5", label: "GLM-4.5" },
+          { value: "zai/glm-4.5-flash", label: "GLM-4.5 Flash" }
+        ],
+        minimax: [
+          { value: "minimax/MiniMax-M2.1", label: "MiniMax M2.1" },
+          { value: "minimax/MiniMax-M2", label: "MiniMax M2" }
+        ],
+        groq: [
+          { value: "groq/llama-3.3-70b-versatile", label: "Llama 3.3 70B" },
+          { value: "groq/moonshotai/kimi-k2-instruct", label: "Kimi K2 Instruct" },
+          { value: "groq/deepseek-r1-distill-llama-70b", label: "DeepSeek R1 Distill 70B" }
+        ],
+        ollama: [
+          { value: "ollama/llama3.3", label: "Llama 3.3" },
+          { value: "ollama/qwen2.5", label: "Qwen 2.5" },
+          { value: "ollama/deepseek-r1", label: "DeepSeek R1" }
+        ]
+      };
+
+      function populateModelSelect(provider, currentModel) {
+        settingsModel.innerHTML = "";
+        var models = PROVIDER_MODELS[provider] || [];
+        models.forEach(function (m) {
+          var opt = document.createElement("option");
+          opt.value = m.value;
+          opt.textContent = m.label;
+          settingsModel.appendChild(opt);
+        });
+        if (currentModel) {
+          // Try to select the current model
+          var found = false;
+          for (var i = 0; i < settingsModel.options.length; i++) {
+            if (settingsModel.options[i].value === currentModel) {
+              settingsModel.selectedIndex = i;
+              found = true;
+              break;
+            }
+          }
+          if (!found && currentModel) {
+            // Add the current model as a custom option
+            var opt = document.createElement("option");
+            opt.value = currentModel;
+            opt.textContent = currentModel;
+            settingsModel.insertBefore(opt, settingsModel.firstChild);
+            settingsModel.selectedIndex = 0;
+          }
+        }
+      }
+
+      settingsProvider.addEventListener("change", function () {
+        populateModelSelect(settingsProvider.value, null);
+      });
+
+      async function openSettings() {
+        showLoading(I18n.t("settings.title") + "...");
+        settingsStatus.textContent = "";
+        settingsStatus.className = "settings-status";
+        settingsLang.value = I18n.getCurrentLang() || "zh";
+
+        // Load auto-start setting
+        try {
+          var autoStart = await api.getSetting("autoStartGateway");
+          settingsAutostart.value = autoStart === false ? "false" : "true";
+        } catch (e) {}
+
+        // Load saved provider/apikey from store
+        try {
+          var savedProvider = await api.getSetting("provider");
+          var savedApiKey = await api.getSetting("apiKey");
+          if (savedProvider) settingsProvider.value = savedProvider;
+          if (savedApiKey) settingsApiKey.value = savedApiKey;
+        } catch (e) {}
+
+        // Load current model config from WSL
+        var currentModel = null;
+        try {
+          var modelConfig = await api.getModelConfig();
+          if (modelConfig && modelConfig.model) {
+            currentModel = modelConfig.model;
+          }
+        } catch (e) {}
+
+        populateModelSelect(settingsProvider.value, currentModel);
+
+        hideLoading();
+        settingsOverlay.classList.remove("hidden");
+        I18n.apply();
+      }
+
+      function closeSettings() {
+        settingsOverlay.classList.add("hidden");
+        settingsApiKey.value = "";
+      }
+
+      document.getElementById("btn-settings").addEventListener("click", openSettings);
+      document.getElementById("settings-close").addEventListener("click", closeSettings);
+      document.getElementById("settings-cancel").addEventListener("click", closeSettings);
+
+      settingsOverlay.addEventListener("click", function (e) {
+        if (e.target === settingsOverlay) closeSettings();
+      });
+
+      document.getElementById("settings-save").addEventListener("click", async function () {
+        var saveBtn = this;
+        saveBtn.disabled = true;
+
+        // Read all values BEFORE closing (closeSettings clears apikey field)
+        var provider = settingsProvider.value;
+        var apiKey = settingsApiKey.value;
+        var model = settingsModel.value || "";
+        var newLang = settingsLang.value;
+        var autoStart = settingsAutostart.value === "true";
+
+        closeSettings();
+        showLoading(I18n.t("settings.saving"));
+
+        try {
+          // Save language
+          if (newLang !== I18n.getCurrentLang()) {
+            I18n.setLanguage(newLang);
+            await api.setSetting("language", newLang);
+          }
+
+          // Save auto-start
+          await api.setSetting("autoStartGateway", autoStart);
+
+          // Save AI config if API key is provided
+          if (apiKey && apiKey.trim()) {
+            var result = await api.configureModel({
+              provider: provider,
+              apiKey: apiKey.trim(),
+              model: model
+            });
+            if (!result) {
+              throw new Error("configureModel returned false");
+            }
+            await api.setSetting("provider", provider);
+            await api.setSetting("apiKey", apiKey.trim());
+          }
+
+          settingsStatus.textContent = I18n.t("settings.saved");
+          settingsStatus.className = "settings-status status-success";
+          appendLog(I18n.t("settings.saved"));
+
+          hideLoading();
+        } catch (err) {
+          hideLoading();
+          appendLog(I18n.t("settings.failed") + (err.message || err));
+        } finally {
+          saveBtn.disabled = false;
+        }
+      });
+
+      document.getElementById("settings-reset-wizard").addEventListener("click", async function () {
+        closeSettings();
+        showLoading(I18n.t("settings.reset.wizard") + "...");
+        try {
+          await api.resetWizard();
+        } catch (err) {
+          hideLoading();
+          appendLog("Error: " + (err.message || err));
+        }
+      });
+
+      document.getElementById("btn-chat").addEventListener("click", function () {
+        window.location.href = "chat.html";
+      });
+
+      document.getElementById("link-docs").addEventListener("click", function (e) {
+        e.preventDefault();
+        window.open("https://github.com/openclaw/desktop/wiki", "_blank");
+      });
+
+      document.getElementById("link-github").addEventListener("click", function (e) {
+        e.preventDefault();
+        window.open("https://github.com/openclaw/desktop", "_blank");
+      });
+
+      api.onStatusChanged(function (status) {
+        appendLog(I18n.t("logs.starting").replace("...", ": " + status));
+        refreshStatus();
+      });
+
+      api.onGatewayCrashed(function () {
+        appendLog(I18n.t("logs.error.start") + "Gateway crashed");
+        refreshStatus();
+      });
+
+      api.onGatewayUnhealthy(function () {
+        appendLog(I18n.t("logs.error.start") + "Gateway unhealthy");
+        refreshStatus();
+      });
+
+      refreshStatus();
+      setInterval(refreshStatus, 30000);
+    })();
+  </script>
+</body>
+</html>

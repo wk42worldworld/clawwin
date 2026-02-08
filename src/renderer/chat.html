@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src * ws: wss: http: https:;">
+  <title>OpenClaw Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="chat-container">
+    <!-- Chat Header -->
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <button id="sidebar-toggle" class="chat-header-toggle" title="Toggle sidebar">&#9776;</button>
+        <span class="chat-model-name">OpenClaw</span>
+        <span class="chat-model-badge" id="model-badge">AI</span>
+        <span id="connection-status" class="chat-model-badge" style="margin-left:4px;">--</span>
+      </div>
+      <div class="chat-header-actions">
+        <button id="btn-new-chat" class="chat-new-btn">
+          <span class="icon">&#43;</span>
+          <span data-i18n="chat.new">New Chat</span>
+        </button>
+        <button id="btn-back" class="chat-new-btn" title="Dashboard">
+          <span class="icon">&#8592;</span>
+          <span data-i18n="chat.back">Dashboard</span>
+        </button>
+        <button id="btn-settings" class="btn btn-icon" data-i18n-title="settings" title="Settings">
+          <span class="icon">&#9881;</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Chat Sidebar -->
+    <div id="chat-sidebar" class="chat-sidebar">
+      <div class="chat-sidebar-header">
+        <h3 data-i18n="chat.history">Chat History</h3>
+        <button id="sidebar-close" class="chat-sidebar-close">&times;</button>
+      </div>
+      <div id="sidebar-list" class="chat-sidebar-list">
+        <!-- Conversation history items go here -->
+      </div>
+    </div>
+
+    <!-- Chat Sidebar Overlay -->
+    <div id="sidebar-overlay" class="chat-sidebar-overlay"></div>
+
+    <!-- Chat Messages Area -->
+    <div id="chat-messages" class="chat-messages">
+      <div id="chat-messages-inner" class="chat-messages-inner">
+        <!-- Messages rendered here -->
+      </div>
+    </div>
+
+    <!-- Chat Empty State -->
+    <div id="chat-empty" class="chat-empty">
+      <div class="chat-empty-icon">&#128172;</div>
+      <div class="chat-empty-title" data-i18n="chat.empty.title">Start a New Conversation</div>
+      <div class="chat-empty-subtitle" data-i18n="chat.empty.subtitle">Send a message to start chatting with AI</div>
+      <div class="chat-empty-suggestions">
+        <button class="chat-empty-suggestion" data-suggestion="1" data-i18n="chat.empty.suggestion1">Explain quantum computing</button>
+        <button class="chat-empty-suggestion" data-suggestion="2" data-i18n="chat.empty.suggestion2">Write a Python script</button>
+        <button class="chat-empty-suggestion" data-suggestion="3" data-i18n="chat.empty.suggestion3">Help me debug code</button>
+        <button class="chat-empty-suggestion" data-suggestion="4" data-i18n="chat.empty.suggestion4">Translate to English</button>
+      </div>
+    </div>
+
+    <!-- Chat Input Area -->
+    <div class="chat-input-area">
+      <div class="chat-input-container">
+        <textarea id="chat-input" class="chat-input" rows="1" placeholder="Type a message..." data-i18n-placeholder="chat.input.placeholder"></textarea>
+        <button id="chat-send-btn" class="chat-send-btn" disabled title="Send">&#10148;</button>
+      </div>
+      <div class="chat-input-hint">
+        <span id="stop-btn" class="hidden" style="cursor:pointer; color:var(--accent-danger);" data-i18n="chat.stop">Stop generating</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script>
+    (function () {
+      // ─── Configuration ────────────────────────────────────────
+      var WS_URL = 'ws://127.0.0.1:18789';
+      var AUTH_TOKEN = 'openclaw-desktop-local';
+      var SESSION_KEY = 'main';
+      var RECONNECT_DELAY = 2000;
+      var MAX_RECONNECT_DELAY = 30000;
+
+      // ─── State ────────────────────────────────────────────────
+      var ws = null;
+      var messages = [];
+      var isStreaming = false;
+      var currentRunId = null;
+      var streamingContent = '';
+      var reconnectAttempts = 0;
+      var reconnectTimer = null;
+      var pendingRequests = {};
+      var isConnected = false;
+      var isAuthenticated = false;
+
+      // ─── DOM References ───────────────────────────────────────
+      var chatMessages = document.getElementById('chat-messages');
+      var chatMessagesInner = document.getElementById('chat-messages-inner');
+      var chatEmpty = document.getElementById('chat-empty');
+      var chatInput = document.getElementById('chat-input');
+      var sendBtn = document.getElementById('chat-send-btn');
+      var stopBtn = document.getElementById('stop-btn');
+      var sidebarToggle = document.getElementById('sidebar-toggle');
+      var chatSidebar = document.getElementById('chat-sidebar');
+      var sidebarClose = document.getElementById('sidebar-close');
+      var sidebarOverlay = document.getElementById('sidebar-overlay');
+      var sidebarList = document.getElementById('sidebar-list');
+      var connectionStatus = document.getElementById('connection-status');
+      var modelBadge = document.getElementById('model-badge');
+      var btnNewChat = document.getElementById('btn-new-chat');
+      var btnBack = document.getElementById('btn-back');
+      var btnSettings = document.getElementById('btn-settings');
+
+      // ─── Initialize i18n ──────────────────────────────────────
+      I18n.init();
+
+      // ─── Utility Functions ────────────────────────────────────
+      function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+      }
+
+      // ─── Simple Markdown Renderer ─────────────────────────────
+      function renderMarkdown(text) {
+        if (!text) return '';
+
+        // Split by code blocks first to protect them
+        var parts = text.split(/(```[\s\S]*?```)/g);
+        var html = '';
+
+        for (var i = 0; i < parts.length; i++) {
+          var part = parts[i];
+          if (part.indexOf('```') === 0 && part.lastIndexOf('```') === part.length - 3 && part.length > 6) {
+            // Code block
+            var codeContent = part.slice(3, -3);
+            var langMatch = codeContent.match(/^([a-zA-Z0-9_+-]+)\s*\n/);
+            var lang = '';
+            var code = codeContent;
+            if (langMatch) {
+              lang = langMatch[1];
+              code = codeContent.slice(langMatch[0].length);
+            } else if (codeContent.indexOf('\n') === 0) {
+              code = codeContent.slice(1);
+            }
+            var codeId = 'code-' + generateId();
+            html += '<pre><div class="chat-code-header"><span>' + escapeHtml(lang) + '</span><button class="chat-code-copy" data-code-id="' + codeId + '">' + I18n.t('chat.copy') + '</button></div><code id="' + codeId + '">' + escapeHtml(code) + '</code></pre>';
+          } else {
+            // Process inline markdown
+            html += renderInlineMarkdown(part);
+          }
+        }
+
+        return html;
+      }
+
+      function renderInlineMarkdown(text) {
+        // Split into lines for block-level processing
+        var lines = text.split('\n');
+        var html = '';
+        var inBlockquote = false;
+        var inList = false;
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+
+          // Blockquote
+          if (line.match(/^>\s?/)) {
+            var quoteText = line.replace(/^>\s?/, '');
+            if (!inBlockquote) {
+              if (inList) { html += '</ul>'; inList = false; }
+              html += '<blockquote>';
+              inBlockquote = true;
+            }
+            html += renderInlineText(quoteText) + '<br>';
+            continue;
+          } else if (inBlockquote) {
+            html += '</blockquote>';
+            inBlockquote = false;
+          }
+
+          // Unordered list
+          if (line.match(/^[\-\*]\s+/)) {
+            var listText = line.replace(/^[\-\*]\s+/, '');
+            if (!inList) {
+              html += '<ul>';
+              inList = true;
+            }
+            html += '<li>' + renderInlineText(listText) + '</li>';
+            continue;
+          } else if (inList) {
+            html += '</ul>';
+            inList = false;
+          }
+
+          // Ordered list
+          if (line.match(/^\d+\.\s+/)) {
+            var orderedText = line.replace(/^\d+\.\s+/, '');
+            // We use <ul> for simplicity, but use <li> with number marker via ordered list
+            if (!inList) {
+              html += '<ul>';
+              inList = true;
+            }
+            html += '<li>' + renderInlineText(orderedText) + '</li>';
+            continue;
+          }
+
+          // Empty line = paragraph break
+          if (line.trim() === '') {
+            if (inList) { html += '</ul>'; inList = false; }
+            html += '<br>';
+            continue;
+          }
+
+          // Normal line
+          html += renderInlineText(line) + '<br>';
+        }
+
+        // Close any open tags
+        if (inBlockquote) html += '</blockquote>';
+        if (inList) html += '</ul>';
+
+        return html;
+      }
+
+      function renderInlineText(text) {
+        var escaped = escapeHtml(text);
+        // Bold: **text**
+        escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        // Italic: *text*
+        escaped = escaped.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        // Inline code: `text`
+        escaped = escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
+        return escaped;
+      }
+
+      // ─── UI Update Functions ──────────────────────────────────
+      function updateEmptyState() {
+        if (messages.length === 0 && !isStreaming) {
+          chatEmpty.classList.remove('hidden');
+          chatMessages.classList.add('hidden');
+        } else {
+          chatEmpty.classList.add('hidden');
+          chatMessages.classList.remove('hidden');
+        }
+      }
+
+      function updateConnectionStatus(status) {
+        connectionStatus.textContent = I18n.t('chat.' + status);
+        connectionStatus.style.borderColor = status === 'connected'
+          ? 'rgba(76, 175, 130, 0.25)'
+          : status === 'connecting'
+            ? 'rgba(240, 168, 64, 0.25)'
+            : 'rgba(224, 85, 85, 0.25)';
+        connectionStatus.style.color = status === 'connected'
+          ? 'var(--accent-success)'
+          : status === 'connecting'
+            ? 'var(--accent-warning)'
+            : 'var(--accent-danger)';
+      }
+
+      function updateSendButton() {
+        var text = chatInput.value.trim();
+        sendBtn.disabled = !text || !isAuthenticated;
+      }
+
+      function scrollToBottom() {
+        requestAnimationFrame(function () {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+      }
+
+      function autoGrowTextarea() {
+        chatInput.style.height = 'auto';
+        var maxH = 200;
+        var newH = Math.min(chatInput.scrollHeight, maxH);
+        chatInput.style.height = newH + 'px';
+      }
+
+      // ─── Render Messages ──────────────────────────────────────
+      function renderAllMessages() {
+        chatMessagesInner.innerHTML = '';
+        for (var i = 0; i < messages.length; i++) {
+          appendMessageDOM(messages[i]);
+        }
+        updateEmptyState();
+        scrollToBottom();
+      }
+
+      function appendMessageDOM(msg) {
+        var div = document.createElement('div');
+        var role = msg.role || 'assistant';
+        div.className = 'chat-message chat-message-' + role;
+        if (msg.isError) {
+          div.className += ' chat-message-error';
+        }
+        div.setAttribute('data-msg-id', msg.id || '');
+
+        // Avatar
+        var avatar = document.createElement('div');
+        avatar.className = 'chat-avatar';
+        avatar.textContent = role === 'user' ? 'U' : 'AI';
+        div.appendChild(avatar);
+
+        // Content wrapper
+        var contentWrap = document.createElement('div');
+        contentWrap.style.cssText = 'flex:1; min-width:0;';
+
+        // Content
+        var content = document.createElement('div');
+        content.className = 'chat-message-content';
+        if (msg.isStreaming) {
+          content.classList.add('chat-streaming-cursor');
+        }
+        if (role === 'user') {
+          content.innerHTML = escapeHtml(msg.content || '').replace(/\n/g, '<br>');
+        } else {
+          content.innerHTML = renderMarkdown(msg.content || '');
+        }
+        contentWrap.appendChild(content);
+
+        // Actions (copy button)
+        if (!msg.isStreaming && msg.content && !msg.isError) {
+          var actions = document.createElement('div');
+          actions.className = 'chat-message-actions';
+          var copyBtn = document.createElement('button');
+          copyBtn.className = 'chat-message-action-btn';
+          copyBtn.innerHTML = '&#128203;';
+          copyBtn.title = I18n.t('chat.copy');
+          copyBtn.addEventListener('click', (function (text) {
+            return function () {
+              copyToClipboard(text, this);
+            };
+          })(msg.content));
+          actions.appendChild(copyBtn);
+          contentWrap.appendChild(actions);
+        }
+
+        // Error retry button
+        if (msg.isError) {
+          var retryBtn = document.createElement('button');
+          retryBtn.className = 'chat-retry-btn';
+          retryBtn.innerHTML = '&#8635; ' + I18n.t('chat.error.retry');
+          retryBtn.addEventListener('click', function () {
+            // Find the last user message and resend
+            for (var j = messages.length - 1; j >= 0; j--) {
+              if (messages[j].role === 'user') {
+                // Remove error message
+                var errorIdx = messages.indexOf(msg);
+                if (errorIdx !== -1) {
+                  messages.splice(errorIdx, 1);
+                }
+                sendMessage(messages[j].content);
+                break;
+              }
+            }
+          });
+          contentWrap.appendChild(retryBtn);
+        }
+
+        div.appendChild(contentWrap);
+        chatMessagesInner.appendChild(div);
+      }
+
+      function updateStreamingMessage() {
+        // Find the last assistant message DOM element
+        var allMsgs = chatMessagesInner.querySelectorAll('.chat-message-assistant');
+        if (allMsgs.length === 0) return;
+        var lastMsg = allMsgs[allMsgs.length - 1];
+        var contentEl = lastMsg.querySelector('.chat-message-content');
+        if (contentEl) {
+          contentEl.innerHTML = renderMarkdown(streamingContent);
+          contentEl.classList.add('chat-streaming-cursor');
+        }
+        scrollToBottom();
+      }
+
+      function finalizeStreamingMessage() {
+        // Update the last assistant message in state
+        for (var i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].role === 'assistant' && messages[i].isStreaming) {
+            messages[i].content = streamingContent;
+            messages[i].isStreaming = false;
+            break;
+          }
+        }
+        // Re-render last message to remove cursor and add copy button
+        renderAllMessages();
+
+        isStreaming = false;
+        currentRunId = null;
+        streamingContent = '';
+        stopBtn.classList.add('hidden');
+        updateSendButton();
+      }
+
+      // ─── Typing Indicator ─────────────────────────────────────
+      function showTypingIndicator() {
+        removeTypingIndicator();
+        var typing = document.createElement('div');
+        typing.className = 'chat-typing';
+        typing.id = 'typing-indicator';
+
+        var avatar = document.createElement('div');
+        avatar.className = 'chat-avatar';
+        avatar.textContent = 'AI';
+        typing.appendChild(avatar);
+
+        var dots = document.createElement('div');
+        dots.className = 'chat-typing-dots';
+        for (var i = 0; i < 3; i++) {
+          var dot = document.createElement('div');
+          dot.className = 'chat-typing-dot';
+          dots.appendChild(dot);
+        }
+        typing.appendChild(dots);
+        chatMessagesInner.appendChild(typing);
+        scrollToBottom();
+      }
+
+      function removeTypingIndicator() {
+        var indicator = document.getElementById('typing-indicator');
+        if (indicator) {
+          indicator.parentNode.removeChild(indicator);
+        }
+      }
+
+      // ─── Clipboard ────────────────────────────────────────────
+      function copyToClipboard(text, btnElement) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            showCopiedFeedback(btnElement);
+          });
+        } else {
+          // Fallback
+          var textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          showCopiedFeedback(btnElement);
+        }
+      }
+
+      function showCopiedFeedback(el) {
+        if (!el) return;
+        var original = el.innerHTML;
+        el.innerHTML = I18n.t('chat.copied');
+        el.style.color = 'var(--accent-success)';
+        setTimeout(function () {
+          el.innerHTML = original;
+          el.style.color = '';
+        }, 1500);
+      }
+
+      // ─── Code Block Copy Handler ──────────────────────────────
+      document.addEventListener('click', function (e) {
+        if (e.target.classList.contains('chat-code-copy')) {
+          var codeId = e.target.getAttribute('data-code-id');
+          var codeEl = document.getElementById(codeId);
+          if (codeEl) {
+            copyToClipboard(codeEl.textContent, e.target);
+          }
+        }
+      });
+
+      // ─── WebSocket Connection ─────────────────────────────────
+      function connect() {
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+          return;
+        }
+
+        updateConnectionStatus('connecting');
+
+        // Optionally resolve the WebSocket URL dynamically
+        var urlPromise = (window.openclaw && window.openclaw.getGatewayWSUrl)
+          ? window.openclaw.getGatewayWSUrl()
+          : Promise.resolve(WS_URL);
+
+        urlPromise.then(function (resolvedUrl) {
+          try {
+            console.log('[Chat] Connecting to WebSocket:', resolvedUrl);
+            ws = new WebSocket(resolvedUrl);
+          } catch (err) {
+            console.error('[Chat] WebSocket creation failed:', err);
+            updateConnectionStatus('disconnected');
+            scheduleReconnect();
+            return;
+          }
+
+          ws.onopen = function () {
+            console.log('[Chat] WebSocket connected, waiting for challenge');
+            isConnected = true;
+            reconnectAttempts = 0;
+            updateConnectionStatus('connecting');
+          };
+
+          ws.onmessage = function (event) {
+            var data;
+            try {
+              data = JSON.parse(event.data);
+            } catch (e) {
+              console.error('[Chat] Failed to parse message:', e);
+              return;
+            }
+            handleMessage(data);
+          };
+
+          ws.onerror = function (err) {
+            console.error('[Chat] WebSocket error:', err);
+          };
+
+          ws.onclose = function (event) {
+            console.log('[Chat] WebSocket closed:', event.code, event.reason);
+            isConnected = false;
+            isAuthenticated = false;
+            updateConnectionStatus('disconnected');
+            updateSendButton();
+
+            // If we were streaming, finalize with an error
+            if (isStreaming) {
+              streamingContent += '\n\n[' + I18n.t('chat.error.connection') + ']';
+              finalizeStreamingMessage();
+            }
+
+            scheduleReconnect();
+          };
+        }).catch(function () {
+          // Fallback to hardcoded URL if IPC fails
+          try {
+            ws = new WebSocket(WS_URL);
+          } catch (err) {
+            console.error('[Chat] WebSocket creation failed:', err);
+            updateConnectionStatus('disconnected');
+            scheduleReconnect();
+          }
+        });
+      }
+
+      function scheduleReconnect() {
+        if (reconnectTimer) return;
+        var delay = Math.min(RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts), MAX_RECONNECT_DELAY);
+        reconnectAttempts++;
+        reconnectTimer = setTimeout(function () {
+          reconnectTimer = null;
+          connect();
+        }, delay);
+      }
+
+      function sendWS(data) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(data));
+        }
+      }
+
+      function sendRequest(method, params) {
+        var id = generateId();
+        var msg = {
+          type: 'req',
+          id: id,
+          method: method,
+          params: params || {}
+        };
+        sendWS(msg);
+        return new Promise(function (resolve, reject) {
+          pendingRequests[id] = { resolve: resolve, reject: reject };
+          // Timeout after 30s
+          setTimeout(function () {
+            if (pendingRequests[id]) {
+              pendingRequests[id].reject(new Error('Request timeout'));
+              delete pendingRequests[id];
+            }
+          }, 30000);
+        });
+      }
+
+      // ─── Message Handler ──────────────────────────────────────
+      function handleMessage(data) {
+        // Handle response to a request
+        if (data.type === 'res' && data.id && pendingRequests[data.id]) {
+          var handler = pendingRequests[data.id];
+          delete pendingRequests[data.id];
+          if (data.ok === false || data.error) {
+            var errMsg = (data.error && data.error.message) || data.message || 'Unknown error';
+            handler.reject(new Error(errMsg));
+          } else {
+            handler.resolve(data.payload || data.result || {});
+          }
+          return;
+        }
+
+        // Handle events
+        if (data.type === 'event') {
+          handleEvent(data);
+        }
+      }
+
+      function handleEvent(data) {
+        var event = data.event;
+        var payload = data.payload || {};
+
+        // Connection challenge
+        if (event === 'connect.challenge') {
+          authenticate(payload);
+          return;
+        }
+
+        // Chat streaming event
+        if (event === 'chat') {
+          handleChatEvent(payload);
+          return;
+        }
+      }
+
+      // ─── Authentication ───────────────────────────────────────
+      function authenticate(challenge) {
+        console.log('[Chat] Authenticating with challenge nonce:', challenge.nonce);
+        var id = generateId();
+        var authMsg = {
+          type: 'req',
+          id: id,
+          method: 'connect',
+          params: {
+            minProtocol: 3,
+            maxProtocol: 3,
+            client: {
+              id: 'webchat-ui',
+              version: '1.0.0',
+              platform: 'windows',
+              mode: 'webchat'
+            },
+            role: 'operator',
+            scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
+            auth: {
+              token: AUTH_TOKEN
+            },
+            caps: [],
+            locale: I18n.getCurrentLang() === 'zh' ? 'zh-CN' : 'en'
+          }
+        };
+        sendWS(authMsg);
+        pendingRequests[id] = {
+          resolve: function (result) {
+            isAuthenticated = true;
+            updateConnectionStatus('connected');
+            updateSendButton();
+            loadModelInfo();
+            loadHistory();
+          },
+          reject: function (err) {
+            updateConnectionStatus('disconnected');
+          }
+        };
+      }
+
+      // ─── Load Model Info ──────────────────────────────────────
+      function loadModelInfo() {
+        if (window.openclaw && window.openclaw.getModelConfig) {
+          window.openclaw.getModelConfig().then(function (config) {
+            if (config && config.model) {
+              var shortName = config.model.split('/').pop();
+              modelBadge.textContent = shortName;
+            }
+          }).catch(function () {
+            // Ignore errors
+          });
+        }
+      }
+
+      // ─── Load Chat History ────────────────────────────────────
+      function loadHistory() {
+        sendRequest('chat.history', {
+          sessionKey: SESSION_KEY,
+          limit: 200
+        }).then(function (result) {
+          if (result && result.messages && result.messages.length > 0) {
+            messages = [];
+            for (var i = 0; i < result.messages.length; i++) {
+              var m = result.messages[i];
+              var content = '';
+              if (m.content) {
+                if (typeof m.content === 'string') {
+                  content = m.content;
+                } else if (Array.isArray(m.content)) {
+                  for (var j = 0; j < m.content.length; j++) {
+                    if (m.content[j].type === 'text') {
+                      content += m.content[j].text;
+                    }
+                  }
+                }
+              }
+              messages.push({
+                id: m.id || generateId(),
+                role: m.role || 'assistant',
+                content: content
+              });
+            }
+            renderAllMessages();
+          } else {
+            updateEmptyState();
+          }
+        }).catch(function () {
+          updateEmptyState();
+        });
+      }
+
+      // ─── Chat Streaming Event Handler ─────────────────────────
+      function handleChatEvent(payload) {
+        if (!payload || payload.sessionKey !== SESSION_KEY) return;
+
+        var state = payload.state;
+        var content = '';
+
+        if (payload.message && payload.message.content) {
+          if (typeof payload.message.content === 'string') {
+            content = payload.message.content;
+          } else if (Array.isArray(payload.message.content)) {
+            for (var i = 0; i < payload.message.content.length; i++) {
+              if (payload.message.content[i].type === 'text') {
+                content += payload.message.content[i].text;
+              }
+            }
+          }
+        }
+
+        if (state === 'delta') {
+          if (!isStreaming) {
+            // Start of streaming - create assistant message
+            isStreaming = true;
+            currentRunId = payload.runId;
+            streamingContent = '';
+            removeTypingIndicator();
+
+            var assistantMsg = {
+              id: generateId(),
+              role: 'assistant',
+              content: '',
+              isStreaming: true
+            };
+            messages.push(assistantMsg);
+            appendMessageDOM(assistantMsg);
+            updateEmptyState();
+          }
+          streamingContent += content;
+          updateStreamingMessage();
+        } else if (state === 'final') {
+          if (isStreaming) {
+            if (content) {
+              streamingContent = content;
+            }
+            finalizeStreamingMessage();
+          } else {
+            // Received a final without prior deltas
+            removeTypingIndicator();
+            if (content) {
+              messages.push({
+                id: generateId(),
+                role: 'assistant',
+                content: content
+              });
+              renderAllMessages();
+            }
+          }
+        } else if (state === 'error') {
+          removeTypingIndicator();
+          if (isStreaming) {
+            streamingContent += '\n\n**Error:** ' + (content || I18n.t('chat.error'));
+            finalizeStreamingMessage();
+          } else {
+            messages.push({
+              id: generateId(),
+              role: 'assistant',
+              content: content || I18n.t('chat.error'),
+              isError: true
+            });
+            renderAllMessages();
+          }
+        }
+      }
+
+      // ─── Send Message ─────────────────────────────────────────
+      function sendMessage(text) {
+        if (!text || !text.trim() || !isAuthenticated) return;
+        text = text.trim();
+
+        // Add user message
+        messages.push({
+          id: generateId(),
+          role: 'user',
+          content: text
+        });
+        renderAllMessages();
+        scrollToBottom();
+
+        // Show typing indicator
+        showTypingIndicator();
+        scrollToBottom();
+
+        // Clear input
+        chatInput.value = '';
+        autoGrowTextarea();
+        updateSendButton();
+
+        // Show stop button
+        stopBtn.classList.remove('hidden');
+
+        // Send to server
+        var idempotencyKey = generateId();
+        currentRunId = idempotencyKey;
+
+        sendRequest('chat.send', {
+          sessionKey: SESSION_KEY,
+          message: text,
+          idempotencyKey: idempotencyKey
+        }).then(function () {
+          // The response will come through streaming events
+        }).catch(function (err) {
+          removeTypingIndicator();
+          stopBtn.classList.add('hidden');
+          messages.push({
+            id: generateId(),
+            role: 'assistant',
+            content: err.message || I18n.t('chat.error'),
+            isError: true
+          });
+          renderAllMessages();
+        });
+      }
+
+      // ─── Abort Streaming ──────────────────────────────────────
+      function abortStreaming() {
+        if (!isStreaming && !currentRunId) return;
+        sendRequest('chat.abort', {
+          sessionKey: SESSION_KEY
+        }).catch(function () {
+          // Ignore errors on abort
+        });
+        if (isStreaming) {
+          finalizeStreamingMessage();
+        } else {
+          removeTypingIndicator();
+          stopBtn.classList.add('hidden');
+        }
+      }
+
+      // ─── New Chat ─────────────────────────────────────────────
+      function newChat() {
+        if (isStreaming) {
+          abortStreaming();
+        }
+        messages = [];
+        streamingContent = '';
+        currentRunId = null;
+        chatMessagesInner.innerHTML = '';
+        updateEmptyState();
+        chatInput.focus();
+      }
+
+      // ─── Sidebar ──────────────────────────────────────────────
+      function openSidebar() {
+        chatSidebar.classList.add('open');
+        sidebarOverlay.classList.add('visible');
+        populateSidebar();
+      }
+
+      function closeSidebar() {
+        chatSidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('visible');
+      }
+
+      function populateSidebar() {
+        sidebarList.innerHTML = '';
+        // Show current session
+        var item = document.createElement('button');
+        item.className = 'chat-sidebar-item active';
+        var icon = document.createElement('span');
+        icon.className = 'chat-sidebar-item-icon';
+        icon.innerHTML = '&#128172;';
+        item.appendChild(icon);
+        var text = document.createElement('span');
+        text.className = 'chat-sidebar-item-text';
+        text.textContent = messages.length > 0 ? (messages[0].content || '').substring(0, 40) : I18n.t('chat.new');
+        item.appendChild(text);
+        item.addEventListener('click', function () {
+          closeSidebar();
+        });
+        sidebarList.appendChild(item);
+      }
+
+      // ─── Event Listeners ──────────────────────────────────────
+
+      // Send on Enter, Shift+Enter for newline
+      chatInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (!sendBtn.disabled) {
+            sendMessage(chatInput.value);
+          }
+        }
+      });
+
+      chatInput.addEventListener('input', function () {
+        autoGrowTextarea();
+        updateSendButton();
+      });
+
+      sendBtn.addEventListener('click', function () {
+        sendMessage(chatInput.value);
+      });
+
+      stopBtn.addEventListener('click', function () {
+        abortStreaming();
+      });
+
+      btnNewChat.addEventListener('click', function () {
+        newChat();
+      });
+
+      btnBack.addEventListener('click', function () {
+        window.location.href = 'index.html';
+      });
+
+      btnSettings.addEventListener('click', function () {
+        window.location.href = 'index.html';
+      });
+
+      sidebarToggle.addEventListener('click', function () {
+        openSidebar();
+      });
+
+      sidebarClose.addEventListener('click', function () {
+        closeSidebar();
+      });
+
+      sidebarOverlay.addEventListener('click', function () {
+        closeSidebar();
+      });
+
+      // Suggestion chips
+      var suggestions = document.querySelectorAll('.chat-empty-suggestion');
+      for (var i = 0; i < suggestions.length; i++) {
+        suggestions[i].addEventListener('click', function () {
+          var text = this.textContent;
+          chatInput.value = text;
+          autoGrowTextarea();
+          updateSendButton();
+          sendMessage(text);
+        });
+      }
+
+      // ─── Initial Setup ────────────────────────────────────────
+      updateEmptyState();
+      chatInput.focus();
+
+      // Check gateway status before attempting WebSocket connection
+      function initConnection() {
+        if (window.openclaw && window.openclaw.getStatus) {
+          window.openclaw.getStatus().then(function (result) {
+            console.log('[Chat] Gateway status:', result.status);
+            if (result.status === 'running') {
+              connect();
+            } else {
+              updateConnectionStatus('disconnected');
+              console.log('[Chat] Gateway not running, will retry...');
+              setTimeout(initConnection, 3000);
+            }
+          }).catch(function (err) {
+            console.error('[Chat] Failed to check gateway status:', err);
+            connect();
+          });
+        } else {
+          connect();
+        }
+      }
+
+      // Listen for gateway status changes from the main process
+      if (window.openclaw && window.openclaw.onStatusChanged) {
+        window.openclaw.onStatusChanged(function (status) {
+          console.log('[Chat] Gateway status changed:', status);
+          if (status === 'running' && !isConnected) {
+            // Gateway just became available, try connecting
+            if (reconnectTimer) {
+              clearTimeout(reconnectTimer);
+              reconnectTimer = null;
+            }
+            connect();
+          } else if (status === 'stopped' || status === 'error') {
+            updateConnectionStatus('disconnected');
+          }
+        });
+      }
+
+      initConnection();
+
+    })();
+  </script>
+</body>
+</html>

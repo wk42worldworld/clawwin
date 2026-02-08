@@ -1,0 +1,156 @@
+/**
+ * OpenClaw Desktop - Preload Script
+ *
+ * Exposes a safe, typed API to the renderer process via Electron's
+ * contextBridge. The renderer accesses this API as `window.openclaw`.
+ * No Node.js or Electron internals are directly accessible.
+ */
+
+import { contextBridge, ipcRenderer } from 'electron';
+
+const openclawAPI = {
+
+  // ─── Environment & Status ──────────────────────────────────
+
+  checkEnv: (): Promise<{
+    wslEnabled: boolean;
+    vmPlatformEnabled: boolean;
+    distroExists: boolean;
+    distroRunning: boolean;
+    gatewayHealthy: boolean;
+    wslVersion: string;
+    errorMessage?: string;
+  }> => ipcRenderer.invoke('check-env'),
+
+  getStatus: (): Promise<{
+    status: string;
+    info: {
+      port: number;
+      pid?: number;
+      uptime?: number;
+      version?: string;
+    } | null;
+  }> => ipcRenderer.invoke('get-status'),
+
+  // ─── Gateway Lifecycle ────────────────────────────────────
+
+  startGateway: (): Promise<boolean> =>
+    ipcRenderer.invoke('start-gateway'),
+
+  stopGateway: (): Promise<void> =>
+    ipcRenderer.invoke('stop-gateway'),
+
+  restartGateway: (): Promise<boolean> =>
+    ipcRenderer.invoke('restart-gateway'),
+
+  // ─── Configuration ────────────────────────────────────────
+
+  configure: (config: {
+    provider: string;
+    apiKey: string;
+    model?: string;
+    platform?: string;
+  }): Promise<boolean> =>
+    ipcRenderer.invoke('configure', config),
+
+  configureModel: (config: {
+    provider: string;
+    apiKey: string;
+    model: string;
+  }): Promise<boolean> =>
+    ipcRenderer.invoke('configure-model', config),
+
+  getModelConfig: (): Promise<{
+    provider: string;
+    model: string;
+    hasApiKey: boolean;
+  }> => ipcRenderer.invoke('get-model-config'),
+
+  resetWizard: (): Promise<void> =>
+    ipcRenderer.invoke('reset-wizard'),
+
+  // ─── Setup Wizard ─────────────────────────────────────────
+
+  completeWizard: (): Promise<void> =>
+    ipcRenderer.invoke('complete-wizard'),
+
+  isFirstLaunch: (): Promise<boolean> =>
+    ipcRenderer.invoke('is-first-launch'),
+
+  // ─── WSL Setup ────────────────────────────────────────────
+
+  enableWSL: (): Promise<{ success: boolean; needsRestart: boolean }> =>
+    ipcRenderer.invoke('enable-wsl'),
+
+  importDistro: (): Promise<boolean> =>
+    ipcRenderer.invoke('import-distro'),
+
+  // ─── Settings ─────────────────────────────────────────────
+
+  getSetting: (key: string): Promise<unknown> =>
+    ipcRenderer.invoke('get-setting', key),
+
+  setSetting: (key: string, value: unknown): Promise<void> =>
+    ipcRenderer.invoke('set-setting', key, value),
+
+  getWebUIUrl: (): Promise<string> =>
+    ipcRenderer.invoke('get-webui-url'),
+
+  getGatewayWSUrl: (): Promise<string> =>
+    ipcRenderer.invoke('get-gateway-ws-url'),
+
+  checkGatewayConnectivity: (): Promise<boolean> =>
+    ipcRenderer.invoke('check-gateway-connectivity'),
+
+  getLocale: (): Promise<string> =>
+    ipcRenderer.invoke('get-locale'),
+
+  // ─── Event Listeners ──────────────────────────────────────
+
+  onStatusChanged: (callback: (status: string) => void): void => {
+    ipcRenderer.on('wsl-status-changed', (_event, status: string) => {
+      callback(status);
+    });
+  },
+
+  onGatewayCrashed: (callback: (exitCode: number) => void): void => {
+    ipcRenderer.on('gateway-crashed', (_event, code: number) => {
+      callback(code);
+    });
+  },
+
+  onGatewayUnhealthy: (callback: () => void): void => {
+    ipcRenderer.on('gateway-unhealthy', () => {
+      callback();
+    });
+  },
+
+  onImportProgress: (callback: (message: string) => void): void => {
+    ipcRenderer.on('import-progress', (_event, message: string) => {
+      callback(message);
+    });
+  },
+
+  onImportError: (callback: (message: string) => void): void => {
+    ipcRenderer.on('import-error', (_event, message: string) => {
+      callback(message);
+    });
+  },
+
+  removeAllListeners: (channel: string): void => {
+    const allowedChannels = [
+      'wsl-status-changed',
+      'gateway-crashed',
+      'gateway-unhealthy',
+      'import-progress',
+      'import-error',
+    ];
+    if (allowedChannels.includes(channel)) {
+      ipcRenderer.removeAllListeners(channel);
+    }
+  },
+};
+
+contextBridge.exposeInMainWorld('openclaw', openclawAPI);
+
+export type OpenClawAPI = typeof openclawAPI;

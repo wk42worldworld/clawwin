@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
+  <title>OpenClaw Desktop - Setup Wizard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="wizard">
+    <header class="wizard-header">
+      <div class="wizard-header-top">
+        <button id="btn-lang" class="btn btn-small wizard-lang-btn" title="Switch Language">EN</button>
+      </div>
+      <h1 class="wizard-title" data-i18n="wizard.title">OpenClaw Desktop Setup</h1>
+      <p class="wizard-subtitle" data-i18n="wizard.subtitle">Let's get your AI assistant up and running</p>
+    </header>
+
+    <div class="wizard-progress">
+      <div class="progress-step active" data-step="1">
+        <div class="step-circle">1</div>
+        <span class="step-label" data-i18n="wizard.step.welcome">Welcome</span>
+      </div>
+      <div class="progress-line"></div>
+      <div class="progress-step" data-step="2">
+        <div class="step-circle">2</div>
+        <span class="step-label" data-i18n="wizard.step.wsl2check">WSL2 Check</span>
+      </div>
+      <div class="progress-line"></div>
+      <div class="progress-step" data-step="3">
+        <div class="step-circle">3</div>
+        <span class="step-label" data-i18n="wizard.step.install">Install</span>
+      </div>
+      <div class="progress-line"></div>
+      <div class="progress-step" data-step="4">
+        <div class="step-circle">4</div>
+        <span class="step-label" data-i18n="wizard.step.aiconfig">AI Config</span>
+      </div>
+      <div class="progress-line"></div>
+      <div class="progress-step" data-step="5">
+        <div class="step-circle">5</div>
+        <span class="step-label" data-i18n="wizard.step.complete">Complete</span>
+      </div>
+    </div>
+
+    <main class="wizard-content">
+      <!-- Step 1: Welcome -->
+      <section class="wizard-step" id="step-1">
+        <div class="step-body">
+          <h2 data-i18n="wizard.welcome.title">Welcome to OpenClaw Desktop</h2>
+          <p data-i18n="wizard.welcome.desc">
+            OpenClaw is a powerful AI assistant that runs locally on your machine
+            using WSL2 (Windows Subsystem for Linux). This wizard will guide you
+            through the setup process.
+          </p>
+          <div class="info-box">
+            <h3 data-i18n="wizard.welcome.whatwedo">What this wizard will do:</h3>
+            <ul>
+              <li data-i18n="wizard.welcome.item1">Verify WSL2 is installed and configured</li>
+              <li data-i18n="wizard.welcome.item2">Install a Linux distribution if needed</li>
+              <li data-i18n="wizard.welcome.item3">Download and configure the OpenClaw service</li>
+              <li data-i18n="wizard.welcome.item4">Start the AI assistant</li>
+            </ul>
+          </div>
+          <div class="info-box info-box-warning">
+            <h3 data-i18n="wizard.welcome.requirements">Requirements</h3>
+            <ul>
+              <li data-i18n="wizard.welcome.req1">Windows 10 version 2004 or later (Build 19041+)</li>
+              <li data-i18n="wizard.welcome.req2">At least 4 GB of available RAM</li>
+              <li data-i18n="wizard.welcome.req3">Virtualization enabled in BIOS</li>
+              <li data-i18n="wizard.welcome.req4">Internet connection for downloading components</li>
+            </ul>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-primary btn-large" id="btn-next-1" data-i18n="wizard.btn.getstarted">
+            Get Started
+          </button>
+        </div>
+      </section>
+
+      <!-- Step 2: WSL2 Check -->
+      <section class="wizard-step hidden" id="step-2">
+        <div class="step-body">
+          <h2 data-i18n="wizard.wsl2check.title">Checking WSL2 Status</h2>
+          <div class="check-list" id="wsl-check-list">
+            <div class="check-item" id="check-wsl-feature">
+              <span class="check-icon check-pending">&#8987;</span>
+              <span class="check-text" data-i18n="wizard.check.wsl.feature">Windows Subsystem for Linux feature</span>
+            </div>
+            <div class="check-item" id="check-vm-platform">
+              <span class="check-icon check-pending">&#8987;</span>
+              <span class="check-text" data-i18n="wizard.check.vm.platform">Virtual Machine Platform feature</span>
+            </div>
+            <div class="check-item" id="check-wsl-version">
+              <span class="check-icon check-pending">&#8987;</span>
+              <span class="check-text" data-i18n="wizard.check.wsl.version">WSL2 kernel version</span>
+            </div>
+            <div class="check-item" id="check-distro">
+              <span class="check-icon check-pending">&#8987;</span>
+              <span class="check-text" data-i18n="wizard.check.distro">Linux distribution installed</span>
+            </div>
+          </div>
+          <div class="status-message" id="wsl-status-message" data-i18n="wizard.check.running">
+            Running checks...
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-secondary" id="btn-back-2" data-i18n="wizard.btn.back">Back</button>
+          <button class="btn btn-primary" id="btn-next-2" disabled data-i18n="wizard.btn.continue">Continue</button>
+          <button class="btn btn-primary hidden" id="btn-install-wsl" data-i18n="wizard.btn.install.wsl">Install WSL2</button>
+        </div>
+      </section>
+
+      <!-- Step 3: Install OpenClaw -->
+      <section class="wizard-step hidden" id="step-3">
+        <div class="step-body">
+          <h2 data-i18n="wizard.install.title">Installing OpenClaw</h2>
+          <div class="install-progress">
+            <div class="progress-bar-container">
+              <div class="progress-bar" id="install-progress-bar" style="width: 0%"></div>
+            </div>
+            <span class="progress-text" id="install-progress-text" data-i18n="wizard.install.preparing">Preparing installation...</span>
+          </div>
+          <div class="install-log-container">
+            <pre class="log-output" id="install-log"></pre>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-secondary" id="btn-back-3" disabled data-i18n="wizard.btn.back">Back</button>
+          <button class="btn btn-primary" id="btn-next-3" disabled data-i18n="wizard.btn.continue">Continue</button>
+        </div>
+      </section>
+
+      <!-- Step 4: AI Provider Config -->
+      <section class="wizard-step hidden" id="step-4">
+        <div class="step-body">
+          <h2 data-i18n="wizard.aiconfig.title">Configure AI Provider</h2>
+          <p data-i18n="wizard.aiconfig.desc">Select your AI provider and enter your API key. You can change this later in Settings.</p>
+          <div class="form-group">
+            <label for="ai-provider" data-i18n="wizard.aiconfig.provider">AI Provider</label>
+            <select id="ai-provider" class="form-select">
+              <option value="anthropic" data-model="anthropic/claude-sonnet-4-20250514">Anthropic (Claude)</option>
+              <option value="openai" data-model="openai/gpt-4o">OpenAI (GPT)</option>
+              <option value="moonshot" data-model="moonshot/kimi-k2.5">Kimi (Moonshot)</option>
+              <option value="kimi-coding" data-model="kimi-coding/k2p5">Kimi Coding</option>
+              <option value="google" data-model="google/gemini-2.5-pro">Google (Gemini)</option>
+              <option value="openrouter" data-model="openrouter/anthropic/claude-sonnet-4-20250514">OpenRouter</option>
+              <option value="zai" data-model="zai/glm-4.7">Z.AI (GLM)</option>
+              <option value="minimax" data-model="minimax/MiniMax-M2.1">MiniMax</option>
+              <option value="qianfan" data-model="qianfan/deepseek-v3.2">Qianfan (DeepSeek)</option>
+              <option value="groq" data-model="groq/llama-3.3-70b-versatile">Groq</option>
+              <option value="ollama" data-model="ollama/llama3.3">Ollama (Local)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="ai-apikey" data-i18n="wizard.aiconfig.apikey">API Key</label>
+            <input type="password" id="ai-apikey" class="form-input" data-i18n-placeholder="wizard.aiconfig.apikey.placeholder" placeholder="Enter your API key...">
+          </div>
+          <div class="form-group">
+            <label for="ai-model" data-i18n="wizard.aiconfig.model">Default Model</label>
+            <input type="text" id="ai-model" class="form-input" readonly>
+          </div>
+          <div class="status-message" id="ai-config-status"></div>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-secondary" id="btn-back-4" data-i18n="wizard.btn.back">Back</button>
+          <button class="btn btn-secondary" id="btn-skip-4" data-i18n="wizard.aiconfig.skip">Skip</button>
+          <button class="btn btn-primary" id="btn-next-4" data-i18n="wizard.btn.continue">Continue</button>
+        </div>
+      </section>
+
+      <!-- Step 5: Complete -->
+      <section class="wizard-step hidden" id="step-5">
+        <div class="step-body center-text">
+          <div class="success-icon">&#10003;</div>
+          <h2 data-i18n="wizard.complete.title">Setup Complete!</h2>
+          <p data-i18n="wizard.complete.desc">
+            OpenClaw has been successfully installed and configured on your system.
+            You can now start using your AI assistant.
+          </p>
+          <div class="info-box">
+            <h3 data-i18n="wizard.complete.tips">Quick Tips</h3>
+            <ul>
+              <li data-i18n="wizard.complete.tip1">Use the dashboard to monitor service status</li>
+              <li data-i18n="wizard.complete.tip2">OpenClaw runs in the background via the system tray</li>
+              <li data-i18n="wizard.complete.tip3">Check the logs panel if you encounter any issues</li>
+              <li data-i18n="wizard.complete.tip4">Updates are checked automatically on startup</li>
+            </ul>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-secondary btn-large" id="btn-finish-dashboard" data-i18n="chat.back">
+            Dashboard
+          </button>
+          <button class="btn btn-primary btn-large" id="btn-finish" data-i18n="wizard.btn.launch.chat">
+            Start Chatting
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script>
+    (function () {
+      var api = window.openclaw;
+      var currentStep = 1;
+      var totalSteps = 5;
+
+      // Initialize i18n then set up the wizard
+      I18n.init().then(function () {
+        // Initialize install log
+        var installLog = document.getElementById("install-log");
+        installLog.textContent = I18n.t("wizard.install.starting");
+        showStep(1);
+      });
+
+      function showStep(step) {
+        for (var i = 1; i <= totalSteps; i++) {
+          var stepEl = document.getElementById("step-" + i);
+          if (stepEl) {
+            stepEl.classList.toggle("hidden", i !== step);
+          }
+          var progressStep = document.querySelector('.progress-step[data-step="' + i + '"]');
+          if (progressStep) {
+            progressStep.classList.toggle("active", i <= step);
+            progressStep.classList.toggle("completed", i < step);
+          }
+        }
+        currentStep = step;
+      }
+
+      function setCheckStatus(checkId, status) {
+        var item = document.getElementById(checkId);
+        if (!item) return;
+        var icon = item.querySelector(".check-icon");
+        icon.className = "check-icon";
+        if (status === "pass") {
+          icon.classList.add("check-pass");
+          icon.innerHTML = "&#10003;";
+        } else if (status === "fail") {
+          icon.classList.add("check-fail");
+          icon.innerHTML = "&#10007;";
+        } else {
+          icon.classList.add("check-pending");
+          icon.innerHTML = "&#8987;";
+        }
+      }
+
+      function appendInstallLog(message) {
+        var log = document.getElementById("install-log");
+        var timestamp = new Date().toLocaleTimeString();
+        log.textContent += "\n[" + timestamp + "] " + message;
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function setInstallProgress(percent, text) {
+        document.getElementById("install-progress-bar").style.width = percent + "%";
+        document.getElementById("install-progress-text").textContent = text;
+      }
+
+      async function runWslChecks() {
+        var statusMsg = document.getElementById("wsl-status-message");
+        var btnNext = document.getElementById("btn-next-2");
+        var btnInstall = document.getElementById("btn-install-wsl");
+        var allPassed = true;
+
+        statusMsg.textContent = I18n.t("wizard.check.running");
+
+        try {
+          var result = await api.checkEnv();
+
+          if (result.wslEnabled) {
+            setCheckStatus("check-wsl-feature", "pass");
+          } else {
+            setCheckStatus("check-wsl-feature", "fail");
+            allPassed = false;
+          }
+
+          if (result.vmPlatformEnabled) {
+            setCheckStatus("check-vm-platform", "pass");
+          } else {
+            setCheckStatus("check-vm-platform", "fail");
+            allPassed = false;
+          }
+
+          if (result.wslVersion && parseInt(result.wslVersion, 10) >= 2) {
+            setCheckStatus("check-wsl-version", "pass");
+          } else {
+            setCheckStatus("check-wsl-version", "fail");
+            allPassed = false;
+          }
+
+          if (result.distroExists) {
+            setCheckStatus("check-distro", "pass");
+          } else {
+            setCheckStatus("check-distro", "fail");
+            allPassed = false;
+          }
+        } catch (err) {
+          setCheckStatus("check-wsl-feature", "fail");
+          setCheckStatus("check-vm-platform", "fail");
+          setCheckStatus("check-wsl-version", "fail");
+          setCheckStatus("check-distro", "fail");
+          allPassed = false;
+        }
+
+        if (allPassed) {
+          statusMsg.textContent = I18n.t("wizard.check.allpassed");
+          btnNext.disabled = false;
+          btnInstall.classList.add("hidden");
+        } else {
+          statusMsg.textContent = I18n.t("wizard.check.failed");
+          btnNext.disabled = true;
+          btnInstall.classList.remove("hidden");
+        }
+      }
+
+      async function runInstallation() {
+        var btnBack = document.getElementById("btn-back-3");
+        var btnNext = document.getElementById("btn-next-3");
+        btnBack.disabled = true;
+        btnNext.disabled = true;
+
+        try {
+          setInstallProgress(10, I18n.t("wizard.install.wsl.env"));
+          appendInstallLog(I18n.t("wizard.install.wsl.starting"));
+
+          setInstallProgress(20, I18n.t("wizard.install.installing"));
+          appendInstallLog(I18n.t("wizard.install.installing"));
+          var imported = await api.importDistro();
+          if (!imported) {
+            appendInstallLog(I18n.t("wizard.install.distro.exists"));
+          }
+
+          setInstallProgress(50, I18n.t("wizard.install.configuring.gateway"));
+          appendInstallLog(I18n.t("wizard.install.configuring.gateway"));
+
+          setInstallProgress(70, I18n.t("wizard.install.starting.service"));
+          appendInstallLog(I18n.t("wizard.install.starting.service.log"));
+          await api.startGateway();
+
+          // Verify the gateway is reachable from Windows (through port forwarding)
+          setInstallProgress(90, I18n.t("wizard.install.verifying") || "Verifying connectivity...");
+          appendInstallLog("Verifying gateway connectivity from Windows...");
+          var reachable = false;
+          if (api.checkGatewayConnectivity) {
+            reachable = await api.checkGatewayConnectivity();
+          }
+          if (reachable) {
+            appendInstallLog("Gateway is reachable from Windows.");
+          } else {
+            appendInstallLog("Warning: Gateway may not be reachable yet. Chat will retry automatically.");
+          }
+
+          setInstallProgress(100, I18n.t("wizard.install.complete"));
+          appendInstallLog(I18n.t("wizard.install.completed"));
+
+          btnNext.disabled = false;
+        } catch (err) {
+          setInstallProgress(0, I18n.t("wizard.install.failed"));
+          appendInstallLog(I18n.t("wizard.install.failed") + " " + err.message);
+          btnBack.disabled = false;
+        }
+      }
+
+      // Step 1: Welcome - Next
+      document.getElementById("btn-next-1").addEventListener("click", function () {
+        showStep(2);
+        runWslChecks();
+      });
+
+      // Step 2: WSL Check - Back
+      document.getElementById("btn-back-2").addEventListener("click", function () {
+        showStep(1);
+      });
+
+      // Step 2: WSL Check - Next
+      document.getElementById("btn-next-2").addEventListener("click", function () {
+        showStep(3);
+        runInstallation();
+      });
+
+      // Step 2: Install WSL button
+      document.getElementById("btn-install-wsl").addEventListener("click", async function () {
+        var btn = this;
+        btn.classList.add("btn-loading");
+        btn.disabled = true;
+        var statusMsg = document.getElementById("wsl-status-message");
+        statusMsg.textContent = I18n.t("wizard.check.installing");
+        try {
+          await api.enableWSL();
+          statusMsg.textContent = I18n.t("wizard.check.installed");
+          await runWslChecks();
+        } catch (err) {
+          statusMsg.textContent = I18n.t("wizard.check.install.failed") + err.message;
+        } finally {
+          btn.classList.remove("btn-loading");
+          btn.disabled = false;
+        }
+      });
+
+      // Step 3: Install - Back
+      document.getElementById("btn-back-3").addEventListener("click", function () {
+        showStep(2);
+      });
+
+      // Step 3: Install - Next
+      document.getElementById("btn-next-3").addEventListener("click", function () {
+        showStep(4);
+        initAiConfig();
+      });
+
+      // Step 4: AI Config - init
+      var providerSelect = document.getElementById("ai-provider");
+      var modelInput = document.getElementById("ai-model");
+
+      function initAiConfig() {
+        var selected = providerSelect.options[providerSelect.selectedIndex];
+        modelInput.value = selected.getAttribute("data-model") || "";
+      }
+
+      providerSelect.addEventListener("change", function () {
+        var selected = providerSelect.options[providerSelect.selectedIndex];
+        modelInput.value = selected.getAttribute("data-model") || "";
+      });
+
+      // Step 4: AI Config - Back
+      document.getElementById("btn-back-4").addEventListener("click", function () {
+        showStep(3);
+      });
+
+      // Step 4: AI Config - Skip
+      document.getElementById("btn-skip-4").addEventListener("click", function () {
+        showStep(5);
+      });
+
+      // Step 4: AI Config - Save & Next
+      document.getElementById("btn-next-4").addEventListener("click", async function () {
+        var btn = this;
+        var statusEl = document.getElementById("ai-config-status");
+        var apiKey = document.getElementById("ai-apikey").value.trim();
+        var provider = providerSelect.value;
+        var model = modelInput.value;
+
+        if (!apiKey && provider !== "ollama") {
+          statusEl.textContent = I18n.t("wizard.aiconfig.apikey.placeholder");
+          statusEl.className = "status-message status-error";
+          return;
+        }
+
+        btn.classList.add("btn-loading");
+        btn.disabled = true;
+        statusEl.textContent = I18n.t("wizard.aiconfig.saving");
+        statusEl.className = "status-message";
+
+        try {
+          await api.configureModel({
+            provider: provider,
+            apiKey: apiKey,
+            model: model
+          });
+          statusEl.textContent = I18n.t("wizard.aiconfig.saved");
+          statusEl.className = "status-message status-success";
+          setTimeout(function () { showStep(5); }, 800);
+        } catch (err) {
+          statusEl.textContent = I18n.t("wizard.aiconfig.failed") + err.message;
+          statusEl.className = "status-message status-error";
+        } finally {
+          btn.classList.remove("btn-loading");
+          btn.disabled = false;
+        }
+      });
+
+      // Step 5: Finish - go directly to chat
+      document.getElementById("btn-finish").addEventListener("click", async function () {
+        var btn = this;
+        btn.classList.add("btn-loading");
+        btn.disabled = true;
+        try {
+          if (api) {
+            await api.completeWizard();
+          }
+          window.location.href = "chat.html";
+        } catch (err) {
+          btn.classList.remove("btn-loading");
+          btn.disabled = false;
+        }
+      });
+
+      // Step 5: Go to dashboard instead
+      document.getElementById("btn-finish-dashboard").addEventListener("click", async function () {
+        var btn = this;
+        btn.classList.add("btn-loading");
+        btn.disabled = true;
+        try {
+          if (api) {
+            await api.completeWizard();
+          }
+          window.location.href = "index.html";
+        } catch (err) {
+          btn.classList.remove("btn-loading");
+          btn.disabled = false;
+        }
+      });
+
+      if (api) {
+        api.onImportProgress(function (msg) {
+          appendInstallLog(msg);
+        });
+
+        api.onImportError(function (msg) {
+          appendInstallLog(I18n.t("wizard.install.failed") + " " + msg);
+        });
+      }
+
+      showStep(1);
+    })();
+  </script>
+</body>
+</html>
