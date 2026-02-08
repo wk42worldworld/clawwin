@@ -21,6 +21,10 @@ extraResources:
     to: image/
     filter:
       - "**/*"
+  - from: wsl_kernel/
+    to: wsl_kernel/
+    filter:
+      - "**/*"
 
 win:
   icon: resources/icon.ico

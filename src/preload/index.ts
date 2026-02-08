@@ -82,6 +82,12 @@ const openclawAPI = {
   enableWSL: (): Promise<{ success: boolean; needsRestart: boolean }> =>
     ipcRenderer.invoke('enable-wsl'),
 
+  installWSLComplete: (): Promise<{ success: boolean; needsRestart: boolean }> =>
+    ipcRenderer.invoke('install-wsl-complete'),
+
+  restartComputer: (): Promise<void> =>
+    ipcRenderer.invoke('restart-computer'),
+
   importDistro: (): Promise<boolean> =>
     ipcRenderer.invoke('import-distro'),
 

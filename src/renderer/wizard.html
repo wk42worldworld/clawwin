@@ -105,11 +105,17 @@
           <div class="status-message" id="wsl-status-message" data-i18n="wizard.check.running">
             Running checks...
           </div>
+          <!-- Restart required overlay -->
+          <div id="restart-required-box" class="info-box info-box-warning hidden" style="margin-top: 16px;">
+            <h3 data-i18n="wizard.restart.title">Restart Required</h3>
+            <p data-i18n="wizard.restart.desc">WSL2 has been enabled but your computer needs to restart to complete the setup. After restarting, ClawWin will automatically continue the setup.</p>
+          </div>
         </div>
         <div class="step-actions">
           <button class="btn btn-secondary" id="btn-back-2" data-i18n="wizard.btn.back">Back</button>
           <button class="btn btn-primary" id="btn-next-2" disabled data-i18n="wizard.btn.continue">Continue</button>
           <button class="btn btn-primary hidden" id="btn-install-wsl" data-i18n="wizard.btn.install.wsl">Install WSL2</button>
+          <button class="btn btn-primary hidden" id="btn-restart-now" data-i18n="wizard.restart.btn" style="background: #e74c3c;">Restart Now</button>
         </div>
       </section>
 
@@ -383,20 +389,48 @@
         runInstallation();
       });
 
-      // Step 2: Install WSL button
+      // Step 2: Install WSL button - uses full install (features + kernel)
       document.getElementById("btn-install-wsl").addEventListener("click", async function () {
         var btn = this;
         btn.classList.add("btn-loading");
         btn.disabled = true;
         var statusMsg = document.getElementById("wsl-status-message");
+        var restartBox = document.getElementById("restart-required-box");
+        var btnRestart = document.getElementById("btn-restart-now");
         statusMsg.textContent = I18n.t("wizard.check.installing");
         try {
-          await api.enableWSL();
-          statusMsg.textContent = I18n.t("wizard.check.installed");
-          await runWslChecks();
+          var result = await api.installWSLComplete();
+          if (result.success && result.needsRestart) {
+            // Show restart required UI
+            statusMsg.textContent = I18n.t("wizard.restart.status");
+            restartBox.classList.remove("hidden");
+            btnRestart.classList.remove("hidden");
+            btn.classList.add("hidden");
+            // Keep install button hidden, show restart button
+          } else if (result.success) {
+            statusMsg.textContent = I18n.t("wizard.check.installed");
+            await runWslChecks();
+          } else {
+            statusMsg.textContent = I18n.t("wizard.check.install.failed") + "Unknown error";
+          }
         } catch (err) {
           statusMsg.textContent = I18n.t("wizard.check.install.failed") + err.message;
         } finally {
+          btn.classList.remove("btn-loading");
+          btn.disabled = false;
+        }
+      });
+
+      // Step 2: Restart Now button
+      document.getElementById("btn-restart-now").addEventListener("click", async function () {
+        var btn = this;
+        btn.classList.add("btn-loading");
+        btn.disabled = true;
+        btn.textContent = I18n.t("wizard.restart.restarting");
+        try {
+          await api.restartComputer();
+        } catch (err) {
+          btn.textContent = I18n.t("wizard.restart.failed");
           btn.classList.remove("btn-loading");
           btn.disabled = false;
         }

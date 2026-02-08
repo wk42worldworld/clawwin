@@ -138,6 +138,14 @@ var I18n = (function () {
       "wizard.btn.continue": "Continue",
       "wizard.btn.install.wsl": "Install WSL2",
 
+      // Restart
+      "wizard.restart.title": "Restart Required",
+      "wizard.restart.desc": "WSL2 has been enabled but your computer needs to restart to complete the setup. After restarting, ClawWin will automatically continue the setup.",
+      "wizard.restart.btn": "Restart Now",
+      "wizard.restart.status": "WSL2 enabled successfully. A restart is required to continue.",
+      "wizard.restart.restarting": "Restarting...",
+      "wizard.restart.failed": "Failed to restart. Please restart manually.",
+
       // Step 3
       "wizard.install.title": "Installing OpenClaw",
       "wizard.install.preparing": "Preparing installation...",
@@ -315,6 +323,14 @@ var I18n = (function () {
       "wizard.btn.back": "\u4e0a\u4e00\u6b65",
       "wizard.btn.continue": "\u7ee7\u7eed",
       "wizard.btn.install.wsl": "\u5b89\u88c5 WSL2",
+
+      // Restart
+      "wizard.restart.title": "\u9700\u8981\u91cd\u542f",
+      "wizard.restart.desc": "WSL2 \u5df2\u542f\u7528\uff0c\u4f46\u9700\u8981\u91cd\u65b0\u542f\u52a8\u8ba1\u7b97\u673a\u624d\u80fd\u5b8c\u6210\u8bbe\u7f6e\u3002\u91cd\u542f\u540e ClawWin \u5c06\u81ea\u52a8\u7ee7\u7eed\u5b89\u88c5\u3002",
+      "wizard.restart.btn": "\u7acb\u5373\u91cd\u542f",
+      "wizard.restart.status": "WSL2 \u5df2\u6210\u529f\u542f\u7528\uff0c\u9700\u8981\u91cd\u542f\u8ba1\u7b97\u673a\u624d\u80fd\u7ee7\u7eed\u3002",
+      "wizard.restart.restarting": "\u6b63\u5728\u91cd\u542f...",
+      "wizard.restart.failed": "\u91cd\u542f\u5931\u8d25\uff0c\u8bf7\u624b\u52a8\u91cd\u542f\u8ba1\u7b97\u673a\u3002",
 
       // Step 3
       "wizard.install.title": "\u6b63\u5728\u5b89\u88c5 OpenClaw",

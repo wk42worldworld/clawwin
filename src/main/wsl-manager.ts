@@ -52,7 +52,7 @@ export class WSLManager extends EventEmitter {
   private readonly GATEWAY_PORT = 18789;
   private readonly GATEWAY_TOKEN = 'openclaw-desktop-local';
   private readonly HEALTH_CHECK_INTERVAL = 10000; // 10s
-  private readonly STARTUP_TIMEOUT = 30000; // 30s
+  private readonly STARTUP_TIMEOUT = 60000; // 60s (cold WSL2 boot can take 15-20s)
 
   // Where bundled resources live (image/, scripts/) — set to process.resourcesPath in production
   private resourcesDir: string;
@@ -226,9 +226,71 @@ export class WSLManager extends EventEmitter {
       log.info(`WSL features enabled. Restart needed: ${needsRestart}`);
       return { success: true, needsRestart };
     } catch (err: any) {
+      // PowerShell script exits with code 1 when restart is needed,
+      // which causes execFileAsync to throw. Check stdout for the marker.
+      if (err.stdout && err.stdout.includes('RESTART_REQUIRED')) {
+        log.info('WSL features enabled but restart is required');
+        return { success: true, needsRestart: true };
+      }
       log.error('Failed to enable WSL features:', err);
       return { success: false, needsRestart: false };
     }
+  }
+
+  /**
+   * Install WSL2 using the modern `wsl --install` command.
+   * Available on Windows 10 21H2+ and Windows 11.
+   * Falls back to PowerShell feature enable + kernel MSI for older builds.
+   * Returns whether a restart is needed.
+   */
+  async installWSLComplete(): Promise<{ success: boolean; needsRestart: boolean }> {
+    log.info('Installing WSL2 (full install)...');
+
+    // Try modern approach first: wsl --install --no-distribution
+    // This enables features, installs the kernel, and sets WSL2 as default
+    try {
+      const { stdout } = await execFileAsync('wsl.exe', [
+        '--install', '--no-distribution',
+      ], { timeout: 120000, windowsHide: true });
+      log.info('wsl --install output:', stdout);
+
+      // Check if restart is needed
+      const needsRestart = stdout.toLowerCase().includes('restart') ||
+                           stdout.includes('重新启动') ||
+                           stdout.includes('重启');
+      return { success: true, needsRestart };
+    } catch (err: any) {
+      // wsl --install may exit with non-zero but still succeed
+      const output = (err.stdout || '') + (err.stderr || '');
+      if (output.toLowerCase().includes('restart') || output.includes('重新启动') || output.includes('重启')) {
+        log.info('wsl --install requires restart');
+        return { success: true, needsRestart: true };
+      }
+      log.warn('wsl --install failed, falling back to manual approach:', err.message);
+    }
+
+    // Fallback: enable features via PowerShell + install kernel MSI
+    const featureResult = await this.enableWSLFeatures();
+    if (!featureResult.success) {
+      return { success: false, needsRestart: false };
+    }
+
+    // If features were just enabled and need restart, return immediately
+    // (kernel install should happen after reboot)
+    if (featureResult.needsRestart) {
+      return { success: true, needsRestart: true };
+    }
+
+    // Features already enabled, try installing kernel
+    const kernelInstalled = await this.installWSLKernel();
+    if (!kernelInstalled) {
+      log.warn('WSL kernel install failed/skipped — may already be present');
+    }
+
+    // Set WSL2 as default version
+    await this.setDefaultVersion();
+
+    return { success: true, needsRestart: false };
   }
 
   /**
@@ -301,7 +363,7 @@ export class WSLManager extends EventEmitter {
     try {
       await this.runWslCommand(
         ['--import', this.DISTRO_NAME, wslDir, tarPath],
-        { timeout: 300000 } // 5 min timeout for large images
+        { timeout: 600000 } // 10 min timeout for large images on slow disks
       );
       log.info('Distro imported successfully');
       this.emit('import-progress', 'Import complete');
@@ -662,7 +724,7 @@ export class WSLManager extends EventEmitter {
 
       // Step 4: Start the service
       log.info('Starting gateway service...');
-      await this.execInDistro('openclaw gateway start', { timeout: 15000 });
+      await this.execInDistro('openclaw gateway start', { timeout: 60000 });
 
       // Step 5: Set up port forwarding (TCP proxy or netsh fallback)
       await this.setupPortProxy();
@@ -703,7 +765,7 @@ export class WSLManager extends EventEmitter {
     await this.stopLocalProxy();
 
     try {
-      await this.execInDistro('openclaw gateway stop', { timeout: 15000 });
+      await this.execInDistro('openclaw gateway stop', { timeout: 30000 });
     } catch (err) {
       log.warn('Failed to stop gateway service:', err);
     }
@@ -720,7 +782,7 @@ export class WSLManager extends EventEmitter {
     await this.stopLocalProxy();
 
     try {
-      await this.execInDistro('openclaw gateway restart', { timeout: 15000 });
+      await this.execInDistro('openclaw gateway restart', { timeout: 60000 });
       // Re-establish port forwarding (WSL IP may have changed)
       await this.setupPortProxy();
       const healthy = await this.waitForHealthy(this.STARTUP_TIMEOUT);
@@ -940,20 +1002,22 @@ export class WSLManager extends EventEmitter {
   }
 
   /**
-   * Configure workspace to point to the Windows Desktop via WSL2 mount.
+   * Configure workspace to point to the Windows user home directory via WSL2 mount.
+   * Using the home directory (e.g. /mnt/c/Users/wangkai) gives the AI agent access
+   * to Desktop, Documents, Downloads, etc. without polluting the Desktop directly.
    * Called automatically during gateway startup.
    */
   private async configureDesktopWorkspace(): Promise<void> {
     try {
-      const desktopPath = path.join(os.homedir(), 'Desktop');
-      const wslPath = this.windowsPathToWSL(desktopPath);
-      log.info(`Configuring workspace to Windows Desktop: ${wslPath}`);
+      const homePath = os.homedir();
+      const wslPath = this.windowsPathToWSL(homePath);
+      log.info(`Configuring workspace to Windows home: ${wslPath}`);
       await this.execInDistro(
         `openclaw config set agents.defaults.workspace '${wslPath}'`
       );
-      log.info('Desktop workspace configured');
+      log.info('Workspace configured');
     } catch (err) {
-      log.warn('Failed to configure desktop workspace:', err);
+      log.warn('Failed to configure workspace:', err);
     }
   }
 
@@ -963,7 +1027,7 @@ export class WSLManager extends EventEmitter {
    */
   async configureWorkspace(windowsPath?: string): Promise<boolean> {
     try {
-      const targetPath = windowsPath || path.join(os.homedir(), 'Desktop');
+      const targetPath = windowsPath || os.homedir();
       const wslPath = this.windowsPathToWSL(targetPath);
       log.info(`Configuring workspace to: ${wslPath}`);
       await this.execInDistro(

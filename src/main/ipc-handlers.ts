@@ -8,6 +8,7 @@
 
 import { ipcMain, BrowserWindow, app } from 'electron';
 import * as path from 'path';
+import { execFile } from 'child_process';
 import log from 'electron-log';
 import Store from 'electron-store';
 import { WSLManager, WSLCheckResult, WSLStatus, GatewayInfo } from './wsl-manager';
@@ -228,6 +229,41 @@ export function registerIPCHandlers(
     } catch (err: any) {
       log.error('IPC: enable-wsl error:', err);
       return { success: false, needsRestart: false };
+    }
+  });
+
+  /**
+   * install-wsl-complete: Full WSL2 installation (features + kernel).
+   * Tries `wsl --install --no-distribution` first, falls back to manual approach.
+   */
+  ipcMain.handle('install-wsl-complete', async (): Promise<{
+    success: boolean;
+    needsRestart: boolean;
+  }> => {
+    log.info('IPC: install-wsl-complete');
+    try {
+      return await wslManager.installWSLComplete();
+    } catch (err: any) {
+      log.error('IPC: install-wsl-complete error:', err);
+      return { success: false, needsRestart: false };
+    }
+  });
+
+  /**
+   * restart-computer: Restarts the computer. Used after WSL2 feature enable.
+   */
+  ipcMain.handle('restart-computer', async (): Promise<void> => {
+    log.info('IPC: restart-computer - Initiating system restart...');
+    try {
+      // Schedule restart in 5 seconds to give the app time to close
+      execFile('shutdown', ['/r', '/t', '5', '/c', 'ClawWin: Restarting to complete WSL2 setup'], { windowsHide: true }, (err) => {
+        if (err) log.error('Failed to schedule restart:', err);
+      });
+      // Quit the app
+      setTimeout(() => app.quit(), 1000);
+    } catch (err: any) {
+      log.error('IPC: restart-computer error:', err);
+      throw err;
     }
   });
 
