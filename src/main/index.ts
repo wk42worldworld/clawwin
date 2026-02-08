@@ -209,6 +209,22 @@ async function initializeApp(): Promise<void> {
   // Remove default menu bar (File, Edit, View, etc.)
   Menu.setApplicationMenu(null);
 
+  // Before creating the window, verify the distro still exists.
+  // If the user uninstalled/reset WSL, re-enter the setup wizard.
+  const isFirstLaunch = store.get('firstLaunch') as boolean;
+  if (!isFirstLaunch) {
+    try {
+      const envCheck = await wslManager.checkEnvironment();
+      if (!envCheck.distroExists) {
+        log.info('Distro not found — resetting to wizard mode');
+        store.set('firstLaunch', true);
+      }
+    } catch (err) {
+      log.warn('Environment check failed during startup:', err);
+      store.set('firstLaunch', true);
+    }
+  }
+
   // Create the main browser window
   mainWindow = createMainWindow();
 
@@ -217,8 +233,8 @@ async function initializeApp(): Promise<void> {
 
   // Auto-start the gateway if configured and not on first launch
   const autoStart = store.get('autoStartGateway') as boolean;
-  const isFirstLaunch = store.get('firstLaunch') as boolean;
-  if (autoStart && !isFirstLaunch) {
+  const currentFirstLaunch = store.get('firstLaunch') as boolean;
+  if (autoStart && !currentFirstLaunch) {
     log.info('Auto-starting gateway...');
     try {
       await wslManager.startGateway();
