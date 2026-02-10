@@ -1202,6 +1202,261 @@ export class WSLManager extends EventEmitter {
   getWebUIUrl(): string {
     return `http://127.0.0.1:${this.GATEWAY_PORT}/?token=${this.GATEWAY_TOKEN}`;
   }
+
+  // ─── Channel Configuration ──────────────────────────────────
+
+  /**
+   * Configure a chat channel with credentials and policies.
+   * Saves configuration to OpenClaw via WSL commands.
+   */
+  async configureChannel(config: {
+    channel: string;
+    token?: string;
+    appToken?: string;
+    appId?: string;
+    appSecret?: string;
+    appPassword?: string;
+    tenantId?: string;
+    account?: string;
+    cliPath?: string;
+    serviceAccount?: string;
+    dmPolicy?: string;
+    allowFrom?: string[];
+  }): Promise<boolean> {
+    try {
+      const { channel } = config;
+      log.info(`Configuring channel: ${channel}`);
+
+      // Enable the channel
+      await this.execInDistro(
+        `openclaw config set channels.${channel}.enabled true`,
+        { timeout: 10000 }
+      );
+
+      // Set DM policy
+      if (config.dmPolicy) {
+        await this.execInDistro(
+          `openclaw config set channels.${channel}.dmPolicy ${config.dmPolicy}`,
+          { timeout: 10000 }
+        );
+      }
+
+      // Set allowFrom list
+      if (config.allowFrom && config.allowFrom.length > 0) {
+        const allowFromJson = JSON.stringify(config.allowFrom);
+        await this.execInDistro(
+          `openclaw config set channels.${channel}.allowFrom '${allowFromJson}'`,
+          { timeout: 10000 }
+        );
+      }
+
+      // Platform-specific credential configuration
+      switch (channel) {
+        case 'telegram':
+        case 'discord':
+          if (config.token) {
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.token '${config.token}'`,
+              { timeout: 10000 }
+            );
+          }
+          break;
+
+        case 'slack':
+          if (config.token) {
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.botToken '${config.token}'`,
+              { timeout: 10000 }
+            );
+          }
+          if (config.appToken) {
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.appToken '${config.appToken}'`,
+              { timeout: 10000 }
+            );
+          }
+          break;
+
+        case 'feishu':
+          if (config.appId && config.appSecret) {
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.appId '${config.appId}'`,
+              { timeout: 10000 }
+            );
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.appSecret '${config.appSecret}'`,
+              { timeout: 10000 }
+            );
+          }
+          break;
+
+        case 'msteams':
+          if (config.appId && config.appPassword && config.tenantId) {
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.appId '${config.appId}'`,
+              { timeout: 10000 }
+            );
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.appPassword '${config.appPassword}'`,
+              { timeout: 10000 }
+            );
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.tenantId '${config.tenantId}'`,
+              { timeout: 10000 }
+            );
+          }
+          break;
+
+        case 'googlechat':
+          if (config.serviceAccount) {
+            // Escape quotes in JSON
+            const escapedJson = config.serviceAccount.replace(/'/g, "'\\''");
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.serviceAccount '${escapedJson}'`,
+              { timeout: 10000 }
+            );
+          }
+          break;
+
+        case 'signal':
+          if (config.account) {
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.account '${config.account}'`,
+              { timeout: 10000 }
+            );
+          }
+          if (config.cliPath) {
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.cliPath '${config.cliPath}'`,
+              { timeout: 10000 }
+            );
+          }
+          break;
+
+        case 'imessage':
+          if (config.cliPath) {
+            await this.execInDistro(
+              `openclaw config set channels.${channel}.cliPath '${config.cliPath}'`,
+              { timeout: 10000 }
+            );
+          }
+          break;
+
+        case 'whatsapp':
+          // WhatsApp uses QR code authentication, no credentials to save
+          log.info('WhatsApp will use QR code authentication on first connection');
+          break;
+
+        default:
+          log.warn(`Unknown channel: ${channel}, basic config applied`);
+      }
+
+      log.info(`Channel ${channel} configured successfully`);
+      return true;
+    } catch (err: any) {
+      log.error(`Failed to configure channel ${config.channel}:`, err);
+      throw err;
+    }
+  }
+
+  /**
+   * Get the configuration status for a specific channel.
+   */
+  async getChannelStatus(channel: string): Promise<any> {
+    try {
+      const { stdout } = await this.execInDistro(
+        `openclaw config get channels.${channel}`,
+        { timeout: 10000 }
+      );
+      const config = JSON.parse(stdout.trim());
+      return config;
+    } catch (err: any) {
+      log.warn(`Failed to get channel status for ${channel}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * List all available skills with their status (ready vs missing).
+   */
+  async listSkills(): Promise<Array<{
+    name: string;
+    icon: string;
+    description: string;
+    ready: boolean;
+    source: string;
+  }>> {
+    try {
+      const { stdout } = await this.execInDistro(
+        'openclaw skills list --json || openclaw skills list',
+        { timeout: 30000 }
+      );
+
+      // Try to parse as JSON first
+      try {
+        const skills = JSON.parse(stdout.trim());
+        return skills.map((skill: any) => ({
+          name: skill.name || skill.skill || '',
+          icon: skill.icon || '📦',
+          description: skill.description || '',
+          ready: skill.status === 'ready' || skill.ready === true,
+          source: skill.source || 'openclaw-bundled'
+        }));
+      } catch {
+        // If JSON parsing fails, parse the table format
+        return this.parseSkillsTable(stdout);
+      }
+    } catch (err: any) {
+      log.error('Failed to list skills:', err);
+      // Return a minimal set of known ready skills as fallback
+      return [
+        { name: 'coding-agent', icon: '🧩', description: 'Run Codex CLI, Claude Code, or Pi Coding Agent', ready: true, source: 'openclaw-bundled' },
+        { name: 'healthcheck', icon: '📦', description: 'Host security hardening and risk-tolerance configuration', ready: true, source: 'openclaw-bundled' },
+        { name: 'skill-creator', icon: '📦', description: 'Create or update AgentSkills', ready: true, source: 'openclaw-bundled' },
+        { name: 'tmux', icon: '🧵', description: 'Remote-control tmux sessions', ready: true, source: 'openclaw-bundled' },
+        { name: 'weather', icon: '🌤️', description: 'Get current weather and forecasts', ready: true, source: 'openclaw-bundled' },
+        { name: 'windows-path', icon: '🪟', description: 'Automatically detect and convert Windows paths to WSL paths', ready: true, source: 'openclaw-bundled' }
+      ];
+    }
+  }
+
+  /**
+   * Parse skills list from table format output.
+   */
+  private parseSkillsTable(output: string): Array<{
+    name: string;
+    icon: string;
+    description: string;
+    ready: boolean;
+    source: string;
+  }> {
+    const skills: Array<any> = [];
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+      // Match table rows (status | name | description | source)
+      const match = line.match(/│\s*(✓|✗)\s*\w+\s*│\s*(.+?)\s*│\s*(.+?)\s*│\s*(.+?)\s*│/);
+      if (match) {
+        const [, statusSymbol, nameWithIcon, description, source] = match;
+        const ready = statusSymbol === '✓';
+
+        // Extract icon and name
+        const nameMatch = nameWithIcon.trim().match(/^(\S+)\s+(.+)$/);
+        const icon = nameMatch ? nameMatch[1] : '📦';
+        const name = nameMatch ? nameMatch[2] : nameWithIcon.trim();
+
+        skills.push({
+          name,
+          icon,
+          description: description.trim(),
+          ready,
+          source: source.trim()
+        });
+      }
+    }
+
+    return skills;
+  }
 }
 
 export default WSLManager;

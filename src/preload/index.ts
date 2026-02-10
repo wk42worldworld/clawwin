@@ -111,8 +111,37 @@ const openclawAPI = {
   configureWorkspace: (windowsPath?: string): Promise<boolean> =>
     ipcRenderer.invoke('configure-workspace', windowsPath),
 
+  // ─── Channel Configuration ────────────────────────────────
+
+  configureChannel: (config: {
+    channel: string;
+    token?: string;
+    appToken?: string;
+    appId?: string;
+    appSecret?: string;
+    appPassword?: string;
+    tenantId?: string;
+    account?: string;
+    cliPath?: string;
+    serviceAccount?: string;
+    dmPolicy?: string;
+    allowFrom?: string[];
+  }): Promise<boolean> =>
+    ipcRenderer.invoke('configure-channel', config),
+
+  getChannelStatus: (channel: string): Promise<any> =>
+    ipcRenderer.invoke('get-channel-status', channel),
+
   getLocale: (): Promise<string> =>
     ipcRenderer.invoke('get-locale'),
+
+  listSkills: (): Promise<Array<{
+    name: string;
+    icon: string;
+    description: string;
+    ready: boolean;
+    source: string;
+  }>> => ipcRenderer.invoke('list-skills'),
 
   // ─── Event Listeners ──────────────────────────────────────
 

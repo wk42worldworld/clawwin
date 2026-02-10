@@ -137,6 +137,27 @@
             </div>
           </div>
 
+          <!-- Channel Configuration -->
+          <div class="settings-section">
+            <button id="settings-open-channels" class="btn btn-secondary" style="width:100%">
+              <span>&#128172;</span> <span data-i18n="settings.channels">Configure Chat Channels</span>
+            </button>
+          </div>
+
+          <!-- Workspace Configuration -->
+          <div class="settings-section">
+            <button id="settings-open-workspace" class="btn btn-secondary" style="width:100%">
+              <span>📁</span> <span data-i18n="settings.workspace">Configure Workspace</span>
+            </button>
+          </div>
+
+          <!-- Skills Configuration -->
+          <div class="settings-section">
+            <button id="settings-open-skills" class="btn btn-secondary" style="width:100%">
+              <span>🔧</span> <span data-i18n="settings.skills">Configure Skills</span>
+            </button>
+          </div>
+
           <!-- Re-run wizard -->
           <div class="settings-section">
             <button id="settings-reset-wizard" class="btn btn-secondary" style="width:100%">
@@ -149,6 +170,183 @@
           <div class="settings-footer-buttons">
             <button id="settings-cancel" class="btn btn-secondary" data-i18n="settings.cancel">Cancel</button>
             <button id="settings-save" class="btn btn-primary" data-i18n="settings.save">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Channel Configuration Overlay -->
+    <div id="channels-config-overlay" class="settings-overlay hidden">
+      <div class="settings-modal" style="max-width: 900px;">
+        <div class="settings-header">
+          <h2>Configure Chat Channels</h2>
+          <button id="channels-config-close" class="btn btn-icon">&times;</button>
+        </div>
+        <div class="settings-body">
+          <p style="margin-bottom: 20px; color: #666;">Select and configure the chat platforms you want to use with OpenClaw:</p>
+
+          <!-- Channel Selection Grid -->
+          <div class="channels-grid">
+            <div class="channel-card" data-channel="whatsapp">
+              <input type="checkbox" class="channel-checkbox" id="ch-whatsapp">
+              <label for="ch-whatsapp">
+                <div class="channel-icon">💬</div>
+                <div class="channel-name">WhatsApp</div>
+              </label>
+            </div>
+            <div class="channel-card" data-channel="telegram">
+              <input type="checkbox" class="channel-checkbox" id="ch-telegram">
+              <label for="ch-telegram">
+                <div class="channel-icon">✈️</div>
+                <div class="channel-name">Telegram</div>
+              </label>
+            </div>
+            <div class="channel-card" data-channel="discord">
+              <input type="checkbox" class="channel-checkbox" id="ch-discord">
+              <label for="ch-discord">
+                <div class="channel-icon">🎮</div>
+                <div class="channel-name">Discord</div>
+              </label>
+            </div>
+            <div class="channel-card" data-channel="slack">
+              <input type="checkbox" class="channel-checkbox" id="ch-slack">
+              <label for="ch-slack">
+                <div class="channel-icon">💼</div>
+                <div class="channel-name">Slack</div>
+              </label>
+            </div>
+            <div class="channel-card" data-channel="signal">
+              <input type="checkbox" class="channel-checkbox" id="ch-signal">
+              <label for="ch-signal">
+                <div class="channel-icon">🔒</div>
+                <div class="channel-name">Signal</div>
+              </label>
+            </div>
+            <div class="channel-card" data-channel="imessage">
+              <input type="checkbox" class="channel-checkbox" id="ch-imessage">
+              <label for="ch-imessage">
+                <div class="channel-icon">💬</div>
+                <div class="channel-name">iMessage</div>
+              </label>
+            </div>
+            <div class="channel-card" data-channel="feishu">
+              <input type="checkbox" class="channel-checkbox" id="ch-feishu">
+              <label for="ch-feishu">
+                <div class="channel-icon">🪽</div>
+                <div class="channel-name">Feishu</div>
+              </label>
+            </div>
+            <div class="channel-card" data-channel="msteams">
+              <input type="checkbox" class="channel-checkbox" id="ch-msteams">
+              <label for="ch-msteams">
+                <div class="channel-icon">👥</div>
+                <div class="channel-name">MS Teams</div>
+              </label>
+            </div>
+            <div class="channel-card" data-channel="googlechat">
+              <input type="checkbox" class="channel-checkbox" id="ch-googlechat">
+              <label for="ch-googlechat">
+                <div class="channel-icon">💬</div>
+                <div class="channel-name">Google Chat</div>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="settings-footer">
+          <span id="channels-status" class="settings-status"></span>
+          <div class="settings-footer-buttons">
+            <button id="channels-config-cancel" class="btn btn-secondary">Cancel</button>
+            <button id="channels-config-save" class="btn btn-primary">Save All Channels</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Individual Channel Configuration Modal -->
+    <div id="channel-config-modal" class="settings-overlay hidden">
+      <div class="settings-modal channel-config-modal" style="max-width: 600px;">
+        <div class="settings-header">
+          <h2 id="channel-modal-title">Configure Channel</h2>
+          <button id="channel-modal-close" class="btn btn-icon">&times;</button>
+        </div>
+        <div class="settings-body">
+          <div id="channel-modal-body">
+            <!-- Dynamically populated based on channel -->
+          </div>
+        </div>
+        <div class="settings-footer">
+          <div class="settings-footer-buttons">
+            <button id="channel-modal-cancel" class="btn btn-secondary">Cancel</button>
+            <button id="channel-modal-save" class="btn btn-primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workspace Configuration Modal -->
+    <div id="workspace-config-overlay" class="settings-overlay hidden">
+      <div class="settings-modal" style="max-width: 600px;">
+        <div class="settings-header">
+          <h2>Configure Workspace</h2>
+          <button id="workspace-config-close" class="btn btn-icon">&times;</button>
+        </div>
+        <div class="settings-body">
+          <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Choose where OpenClaw will store your files and work with them. You can use a Windows path (e.g., E:\my-workspace).
+          </p>
+          <div class="form-group">
+            <label>Workspace Path</label>
+            <div class="input-group">
+              <input
+                type="text"
+                id="workspace-path-input"
+                class="form-input"
+                placeholder="E:\openclaw-workspace"
+              />
+              <button class="btn btn-secondary" id="btn-browse-workspace-modal">Browse</button>
+            </div>
+            <small class="help-text">
+              Windows paths (C:\, E:\, etc.) will be automatically converted to WSL paths. Leave empty for default (Desktop).
+            </small>
+          </div>
+          <div class="status-message" id="workspace-config-status"></div>
+        </div>
+        <div class="settings-footer">
+          <div class="settings-footer-buttons">
+            <button id="workspace-config-cancel" class="btn btn-secondary">Cancel</button>
+            <button id="workspace-config-save" class="btn btn-primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skills Configuration Modal -->
+    <div id="skills-config-overlay" class="settings-overlay hidden">
+      <div class="settings-modal" style="max-width: 900px;">
+        <div class="settings-header">
+          <h2>Configure Skills</h2>
+          <button id="skills-config-close" class="btn btn-icon">&times;</button>
+        </div>
+        <div class="settings-body">
+          <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Skills extend OpenClaw's capabilities. Enable the ones you want to use. Skills marked as "ready" work out of the box.
+          </p>
+          <div class="skills-filter">
+            <label>
+              <input type="checkbox" id="skills-filter-ready-modal" checked />
+              <span>Show Ready Only</span>
+            </label>
+            <button class="btn btn-small" id="btn-select-all-skills-modal">Select All Ready</button>
+          </div>
+          <div class="skills-list" id="skills-list-modal">
+            <div class="loading-text">Loading skills...</div>
+          </div>
+          <div class="status-message" id="skills-config-status"></div>
+        </div>
+        <div class="settings-footer">
+          <div class="settings-footer-buttons">
+            <button id="skills-config-cancel" class="btn btn-secondary">Cancel</button>
+            <button id="skills-config-save" class="btn btn-primary">Save</button>
           </div>
         </div>
       </div>
@@ -521,6 +719,557 @@
 
       refreshStatus();
       setInterval(refreshStatus, 30000);
+
+      // ─── Channel Configuration ──────────────────────────────────────
+      var channelsConfigOverlay = document.getElementById("channels-config-overlay");
+      var channelModalOverlay = document.getElementById("channel-config-modal");
+      var selectedChannels = {}; // Store channel configurations
+
+      var CHANNEL_CONFIGS = {
+        whatsapp: {
+          name: "WhatsApp",
+          fields: [
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "pairing" },
+            { key: "allowFrom", label: "Allow From (phone numbers, comma-separated)", type: "textarea", help: "E.164 format, e.g., +1234567890,+9876543210" }
+          ]
+        },
+        telegram: {
+          name: "Telegram",
+          fields: [
+            { key: "token", label: "Bot Token", type: "password", required: true, help: "Get from @BotFather" },
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "pairing" },
+            { key: "allowFrom", label: "Allow From (usernames/IDs)", type: "textarea", help: "e.g., @alice,123456789" }
+          ]
+        },
+        discord: {
+          name: "Discord",
+          fields: [
+            { key: "token", label: "Bot Token", type: "password", required: true, help: "From Discord Developer Portal" },
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "pairing" },
+            { key: "allowFrom", label: "Allow From (user IDs)", type: "textarea", help: "e.g., 123456789012345678" }
+          ]
+        },
+        slack: {
+          name: "Slack",
+          fields: [
+            { key: "token", label: "Bot Token", type: "password", required: true, help: "xoxb-... token" },
+            { key: "appToken", label: "App Token", type: "password", required: true, help: "xapp-... token (Socket Mode)" },
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "open" },
+            { key: "allowFrom", label: "Allow From (user IDs)", type: "textarea", help: "e.g., U01234ABCDE" }
+          ]
+        },
+        signal: {
+          name: "Signal",
+          fields: [
+            { key: "account", label: "Phone Number", type: "text", required: true, help: "E.164 format: +1234567890" },
+            { key: "cliPath", label: "signal-cli Path (optional)", type: "text", help: "Path to signal-cli executable" },
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "pairing" },
+            { key: "allowFrom", label: "Allow From (phone numbers)", type: "textarea", help: "E.164: +1234567890" }
+          ]
+        },
+        imessage: {
+          name: "iMessage",
+          fields: [
+            { key: "cliPath", label: "CLI Path (optional)", type: "text", help: "Custom iMessage CLI path" },
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "allowlist" },
+            { key: "allowFrom", label: "Allow From (emails/phone numbers)", type: "textarea", help: "e.g., alice@icloud.com,+1234567890" }
+          ]
+        },
+        feishu: {
+          name: "Feishu",
+          fields: [
+            { key: "appId", label: "App ID", type: "text", required: true, help: "cli_xxxxxxxxxx" },
+            { key: "appSecret", label: "App Secret", type: "password", required: true, help: "From Feishu Open Platform" },
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "allowlist" },
+            { key: "allowFrom", label: "Allow From (user IDs)", type: "textarea", help: "e.g., ou_xxxx,ou_yyyy" }
+          ]
+        },
+        msteams: {
+          name: "MS Teams",
+          fields: [
+            { key: "appId", label: "App ID", type: "text", required: true, help: "Azure Bot App ID" },
+            { key: "appPassword", label: "App Password", type: "password", required: true, help: "Azure Bot Secret" },
+            { key: "tenantId", label: "Tenant ID", type: "text", required: true, help: "Azure AD Tenant ID" },
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "allowlist" },
+            { key: "allowFrom", label: "Allow From (user IDs)", type: "textarea", help: "e.g., 29:xxxx,29:yyyy" }
+          ]
+        },
+        googlechat: {
+          name: "Google Chat",
+          fields: [
+            { key: "serviceAccount", label: "Service Account JSON", type: "textarea", required: true, help: "Paste the entire JSON credential file content" },
+            { key: "dmPolicy", label: "DM Strategy", type: "select", options: ["pairing", "allowlist", "open", "disabled"], default: "allowlist" },
+            { key: "allowFrom", label: "Allow From (emails)", type: "textarea", help: "e.g., alice@example.com" }
+          ]
+        }
+      };
+
+      function openChannelsConfig() {
+        closeSettings(); // Close main settings if open
+        channelsConfigOverlay.classList.remove("hidden");
+        document.getElementById("channels-status").textContent = "";
+
+        // Load existing channel configurations
+        Object.keys(selectedChannels).forEach(function (channel) {
+          var checkbox = document.getElementById("ch-" + channel);
+          if (checkbox) {
+            checkbox.checked = true;
+            checkbox.parentElement.classList.add("selected");
+          }
+        });
+      }
+
+      function closeChannelsConfig() {
+        channelsConfigOverlay.classList.add("hidden");
+        // Clear all checkboxes
+        document.querySelectorAll(".channel-checkbox").forEach(function (cb) {
+          cb.checked = false;
+          cb.parentElement.classList.remove("selected");
+        });
+        selectedChannels = {};
+      }
+
+      function openChannelConfigModal(channel) {
+        var config = CHANNEL_CONFIGS[channel];
+        if (!config) return;
+
+        document.getElementById("channel-modal-title").textContent = "Configure " + config.name;
+        var modalBody = document.getElementById("channel-modal-body");
+        modalBody.innerHTML = "";
+        modalBody.dataset.channel = channel;
+
+        // Build form fields
+        config.fields.forEach(function (field) {
+          var group = document.createElement("div");
+          group.className = "form-group";
+
+          var label = document.createElement("label");
+          label.textContent = field.label + (field.required ? " *" : "");
+          group.appendChild(label);
+
+          var input;
+          if (field.type === "select") {
+            input = document.createElement("select");
+            input.className = "form-select";
+            field.options.forEach(function (opt) {
+              var option = document.createElement("option");
+              option.value = opt;
+              option.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+              input.appendChild(option);
+            });
+            if (field.default) input.value = field.default;
+          } else if (field.type === "textarea") {
+            input = document.createElement("textarea");
+            input.className = "form-input";
+            input.rows = 3;
+          } else {
+            input = document.createElement("input");
+            input.type = field.type || "text";
+            input.className = "form-input";
+          }
+
+          input.dataset.key = field.key;
+          input.required = field.required || false;
+
+          // Load existing value if editing
+          if (selectedChannels[channel] && selectedChannels[channel][field.key] !== undefined) {
+            var val = selectedChannels[channel][field.key];
+            if (Array.isArray(val)) {
+              input.value = val.join(", ");
+            } else {
+              input.value = val;
+            }
+          }
+
+          group.appendChild(input);
+
+          if (field.help) {
+            var help = document.createElement("small");
+            help.style.color = "#666";
+            help.style.display = "block";
+            help.style.marginTop = "4px";
+            help.textContent = field.help;
+            group.appendChild(help);
+          }
+
+          modalBody.appendChild(group);
+        });
+
+        channelModalOverlay.classList.remove("hidden");
+      }
+
+      function closeChannelConfigModal() {
+        channelModalOverlay.classList.add("hidden");
+      }
+
+      function saveChannelConfigModal() {
+        var modalBody = document.getElementById("channel-modal-body");
+        var channel = modalBody.dataset.channel;
+        if (!channel) return;
+
+        var channelConfig = { channel: channel };
+        var inputs = modalBody.querySelectorAll("input, select, textarea");
+        var valid = true;
+
+        inputs.forEach(function (input) {
+          var key = input.dataset.key;
+          var value = input.value.trim();
+
+          if (input.required && !value) {
+            valid = false;
+            input.style.borderColor = "red";
+            return;
+          } else {
+            input.style.borderColor = "";
+          }
+
+          if (key === "allowFrom" && value) {
+            // Convert comma-separated to array
+            channelConfig[key] = value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+          } else if (value) {
+            channelConfig[key] = value;
+          }
+        });
+
+        if (!valid) {
+          alert("Please fill in all required fields");
+          return;
+        }
+
+        selectedChannels[channel] = channelConfig;
+        closeChannelConfigModal();
+
+        // Mark checkbox as checked
+        var checkbox = document.getElementById("ch-" + channel);
+        if (checkbox) {
+          checkbox.checked = true;
+          checkbox.parentElement.classList.add("selected");
+        }
+      }
+
+      // Event listeners for channel configuration
+      document.getElementById("settings-open-channels").addEventListener("click", function () {
+        openChannelsConfig();
+      });
+
+      document.getElementById("channels-config-close").addEventListener("click", closeChannelsConfig);
+      document.getElementById("channels-config-cancel").addEventListener("click", closeChannelsConfig);
+
+      channelsConfigOverlay.addEventListener("click", function (e) {
+        if (e.target === channelsConfigOverlay) closeChannelsConfig();
+      });
+
+      // Channel checkbox handling
+      document.querySelectorAll(".channel-checkbox").forEach(function (checkbox) {
+        checkbox.addEventListener("change", function () {
+          var channel = this.parentElement.dataset.channel;
+          if (this.checked) {
+            openChannelConfigModal(channel);
+          } else {
+            // Remove from selectedChannels
+            delete selectedChannels[channel];
+            this.parentElement.classList.remove("selected");
+          }
+        });
+      });
+
+      // Channel config modal handlers
+      document.getElementById("channel-modal-close").addEventListener("click", function () {
+        var modalBody = document.getElementById("channel-modal-body");
+        var channel = modalBody.dataset.channel;
+        // Uncheck if config not saved
+        if (!selectedChannels[channel]) {
+          var checkbox = document.getElementById("ch-" + channel);
+          if (checkbox) {
+            checkbox.checked = false;
+            checkbox.parentElement.classList.remove("selected");
+          }
+        }
+        closeChannelConfigModal();
+      });
+
+      document.getElementById("channel-modal-cancel").addEventListener("click", function () {
+        var modalBody = document.getElementById("channel-modal-body");
+        var channel = modalBody.dataset.channel;
+        // Uncheck if config not saved
+        if (!selectedChannels[channel]) {
+          var checkbox = document.getElementById("ch-" + channel);
+          if (checkbox) {
+            checkbox.checked = false;
+            checkbox.parentElement.classList.remove("selected");
+          }
+        }
+        closeChannelConfigModal();
+      });
+
+      document.getElementById("channel-modal-save").addEventListener("click", saveChannelConfigModal);
+
+      channelModalOverlay.addEventListener("click", function (e) {
+        if (e.target === channelModalOverlay) {
+          var modalBody = document.getElementById("channel-modal-body");
+          var channel = modalBody.dataset.channel;
+          if (!selectedChannels[channel]) {
+            var checkbox = document.getElementById("ch-" + channel);
+            if (checkbox) {
+              checkbox.checked = false;
+              checkbox.parentElement.classList.remove("selected");
+            }
+          }
+          closeChannelConfigModal();
+        }
+      });
+
+      // Save all channels
+      document.getElementById("channels-config-save").addEventListener("click", async function () {
+        var statusEl = document.getElementById("channels-status");
+        var saveBtn = this;
+        saveBtn.disabled = true;
+
+        showLoading("Saving channel configurations...");
+        statusEl.textContent = "";
+
+        try {
+          var channelList = Object.keys(selectedChannels);
+          if (channelList.length === 0) {
+            hideLoading();
+            closeChannelsConfig();
+            saveBtn.disabled = false;
+            return;
+          }
+
+          // Configure each channel
+          for (var i = 0; i < channelList.length; i++) {
+            var config = selectedChannels[channelList[i]];
+            var result = await api.configureChannel(config);
+            if (!result) {
+              throw new Error("Failed to configure " + channelList[i]);
+            }
+          }
+
+          hideLoading();
+          statusEl.textContent = "Channels configured successfully!";
+          statusEl.className = "settings-status status-success";
+          appendLog("Channels configured: " + channelList.join(", "));
+
+          setTimeout(function () {
+            closeChannelsConfig();
+          }, 1500);
+        } catch (err) {
+          hideLoading();
+          statusEl.textContent = "Failed: " + (err.message || err);
+          statusEl.className = "settings-status status-error";
+        } finally {
+          saveBtn.disabled = false;
+        }
+      });
+
+      // ─── Workspace Configuration ──────────────────────────────────
+
+      document.getElementById("settings-open-workspace").addEventListener("click", function () {
+        document.getElementById('workspace-config-overlay').classList.remove('hidden');
+      });
+
+      document.getElementById('workspace-config-close').addEventListener('click', function () {
+        document.getElementById('workspace-config-overlay').classList.add('hidden');
+      });
+
+      document.getElementById('workspace-config-cancel').addEventListener('click', function () {
+        document.getElementById('workspace-config-overlay').classList.add('hidden');
+      });
+
+      document.getElementById('btn-browse-workspace-modal').addEventListener('click', function () {
+        alert('Please enter your Windows path manually (e.g., E:\\my-workspace).\n\nFuture version will include a folder picker dialog.');
+      });
+
+      document.getElementById('workspace-config-save').addEventListener('click', async function () {
+        var btn = this;
+        var statusEl = document.getElementById('workspace-config-status');
+        var pathInput = document.getElementById('workspace-path-input');
+        var windowsPath = pathInput.value.trim();
+
+        btn.disabled = true;
+        showLoading('Configuring workspace...');
+        statusEl.textContent = '';
+        statusEl.className = 'status-message';
+
+        try {
+          var result;
+          if (windowsPath) {
+            result = await api.configureWorkspace(windowsPath);
+            if (result) {
+              hideLoading();
+              statusEl.textContent = 'Workspace configured: ' + windowsPath;
+              statusEl.className = 'status-message status-success';
+              appendLog('Workspace configured: ' + windowsPath);
+            } else {
+              throw new Error('Failed to configure workspace');
+            }
+          } else {
+            result = await api.configureWorkspace();
+            hideLoading();
+            statusEl.textContent = 'Using default workspace (Desktop)';
+            statusEl.className = 'status-message status-success';
+            appendLog('Using default workspace');
+          }
+
+          setTimeout(function () {
+            document.getElementById('workspace-config-overlay').classList.add('hidden');
+            pathInput.value = '';
+          }, 1500);
+        } catch (err) {
+          hideLoading();
+          statusEl.textContent = 'Failed: ' + (err.message || err);
+          statusEl.className = 'status-message status-error';
+          appendLog('Workspace configuration failed: ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      // ─── Skills Configuration ─────────────────────────────────────
+
+      var skillsModalSelectedSkills = [];
+      var skillsModalAllSkills = [];
+
+      document.getElementById("settings-open-skills").addEventListener("click", async function () {
+        document.getElementById('skills-config-overlay').classList.remove('hidden');
+        if (skillsModalAllSkills.length === 0) {
+          await loadSkillsListModal();
+        }
+      });
+
+      document.getElementById('skills-config-close').addEventListener('click', function () {
+        document.getElementById('skills-config-overlay').classList.add('hidden');
+      });
+
+      document.getElementById('skills-config-cancel').addEventListener('click', function () {
+        document.getElementById('skills-config-overlay').classList.add('hidden');
+      });
+
+      async function loadSkillsListModal() {
+        var skillsListEl = document.getElementById('skills-list-modal');
+        skillsListEl.innerHTML = '<div class="loading-text">Loading skills...</div>';
+
+        try {
+          var skills = await api.listSkills();
+          skillsModalAllSkills = skills;
+          renderSkillsListModal(skills);
+        } catch (err) {
+          skillsListEl.innerHTML = '<div class="status-message status-error">Failed to load skills: ' + err.message + '</div>';
+        }
+      }
+
+      function renderSkillsListModal(skills) {
+        var skillsListEl = document.getElementById('skills-list-modal');
+        var filterReady = document.getElementById('skills-filter-ready-modal').checked;
+
+        var filteredSkills = filterReady ? skills.filter(function (s) { return s.ready; }) : skills;
+
+        if (filteredSkills.length === 0) {
+          skillsListEl.innerHTML = '<div class="status-message">No skills found.</div>';
+          return;
+        }
+
+        skillsListEl.innerHTML = '';
+        filteredSkills.forEach(function (skill) {
+          var skillCard = document.createElement('div');
+          skillCard.className = 'skill-card';
+          if (!skill.ready) skillCard.classList.add('skill-missing');
+
+          var checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = 'skill-modal-' + skill.name;
+          checkbox.className = 'skill-checkbox';
+          checkbox.value = skill.name;
+          if (skill.ready && skillsModalSelectedSkills.indexOf(skill.name) !== -1) {
+            checkbox.checked = true;
+          }
+          if (!skill.ready) {
+            checkbox.disabled = true;
+          }
+
+          checkbox.addEventListener('change', function () {
+            if (this.checked) {
+              if (skillsModalSelectedSkills.indexOf(skill.name) === -1) {
+                skillsModalSelectedSkills.push(skill.name);
+              }
+            } else {
+              skillsModalSelectedSkills = skillsModalSelectedSkills.filter(function (s) { return s !== skill.name; });
+            }
+          });
+
+          var label = document.createElement('label');
+          label.htmlFor = 'skill-modal-' + skill.name;
+
+          var nameSpan = document.createElement('div');
+          nameSpan.className = 'skill-name';
+          nameSpan.textContent = skill.icon + ' ' + skill.name;
+
+          var descSpan = document.createElement('div');
+          descSpan.className = 'skill-desc';
+          descSpan.textContent = skill.description;
+
+          var statusSpan = document.createElement('div');
+          statusSpan.className = 'skill-status';
+          statusSpan.textContent = skill.ready ? '✓ Ready' : '✗ Missing';
+
+          label.appendChild(nameSpan);
+          label.appendChild(descSpan);
+          label.appendChild(statusSpan);
+
+          skillCard.appendChild(checkbox);
+          skillCard.appendChild(label);
+          skillsListEl.appendChild(skillCard);
+        });
+      }
+
+      document.getElementById('skills-filter-ready-modal').addEventListener('change', function () {
+        renderSkillsListModal(skillsModalAllSkills);
+      });
+
+      document.getElementById('btn-select-all-skills-modal').addEventListener('click', function () {
+        var readySkills = skillsModalAllSkills.filter(function (s) { return s.ready; });
+        readySkills.forEach(function (skill) {
+          if (skillsModalSelectedSkills.indexOf(skill.name) === -1) {
+            skillsModalSelectedSkills.push(skill.name);
+          }
+        });
+        renderSkillsListModal(skillsModalAllSkills);
+      });
+
+      document.getElementById('skills-config-save').addEventListener('click', async function () {
+        var btn = this;
+        var statusEl = document.getElementById('skills-config-status');
+
+        btn.disabled = true;
+        showLoading('Enabling skills...');
+
+        try {
+          if (skillsModalSelectedSkills.length > 0) {
+            hideLoading();
+            statusEl.textContent = skillsModalSelectedSkills.length + ' skill(s) selected and enabled!';
+            statusEl.className = 'status-message status-success';
+            appendLog('Skills enabled: ' + skillsModalSelectedSkills.join(', '));
+            // Note: Skills are already available, no need to explicitly enable them
+          } else {
+            hideLoading();
+            statusEl.textContent = 'No skills selected';
+            statusEl.className = 'status-message';
+          }
+
+          setTimeout(function () {
+            document.getElementById('skills-config-overlay').classList.add('hidden');
+          }, 1500);
+        } catch (err) {
+          hideLoading();
+          statusEl.textContent = 'Failed: ' + (err.message || err);
+          statusEl.className = 'status-message status-error';
+          appendLog('Skills configuration failed: ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
     })();
   </script>
 </body>

@@ -337,11 +337,72 @@ export function registerIPCHandlers(
     }
   });
 
+  // ─── Channel Configuration ───────────────────────────────────
+
+  /**
+   * configure-channel: Configures a chat channel (WhatsApp, Telegram, etc.)
+   * with credentials, DM policy, and allowFrom list.
+   */
+  ipcMain.handle('configure-channel', async (_event, config: {
+    channel: string;
+    token?: string;
+    appToken?: string;
+    appId?: string;
+    appSecret?: string;
+    appPassword?: string;
+    tenantId?: string;
+    account?: string;
+    cliPath?: string;
+    serviceAccount?: string;
+    dmPolicy?: string;
+    allowFrom?: string[];
+  }): Promise<boolean> => {
+    log.info('IPC: configure-channel', config.channel);
+    try {
+      return await wslManager.configureChannel(config);
+    } catch (err: any) {
+      log.error('IPC: configure-channel error:', err);
+      return false;
+    }
+  });
+
+  /**
+   * get-channel-status: Retrieves the configuration status for a channel.
+   */
+  ipcMain.handle('get-channel-status', async (_event, channel: string): Promise<any> => {
+    log.info('IPC: get-channel-status', channel);
+    try {
+      return await wslManager.getChannelStatus(channel);
+    } catch (err: any) {
+      log.error('IPC: get-channel-status error:', err);
+      return null;
+    }
+  });
+
   /**
    * get-locale: Returns the system locale (e.g., "zh-CN", "en-US").
    */
   ipcMain.handle('get-locale', async (): Promise<string> => {
     return app.getLocale();
+  });
+
+  /**
+   * list-skills: Returns all available skills with their status.
+   */
+  ipcMain.handle('list-skills', async (): Promise<Array<{
+    name: string;
+    icon: string;
+    description: string;
+    ready: boolean;
+    source: string;
+  }>> => {
+    log.info('IPC: list-skills');
+    try {
+      return await wslManager.listSkills();
+    } catch (err: any) {
+      log.error('IPC: list-skills error:', err);
+      return [];
+    }
   });
 
   log.info('All IPC handlers registered');
