@@ -1435,12 +1435,13 @@ export class WSLManager extends EventEmitter {
 
     for (const line of lines) {
       // Match table rows (status | name | description | source)
-      const match = line.match(/│\s*(✓|✗)\s*\w+\s*│\s*(.+?)\s*│\s*(.+?)\s*│\s*(.+?)\s*│/);
+      // Only match lines that start with status symbol (✓ or ✗) in the first column
+      const match = line.match(/│\s*(✓|✗)\s+(ready|missing)\s*│\s*(.+?)\s*│\s*(.+?)\s*│\s*(.+?)\s*│/);
       if (match) {
-        const [, statusSymbol, nameWithIcon, description, source] = match;
+        const [, statusSymbol, , nameWithIcon, description, source] = match;
         const ready = statusSymbol === '✓';
 
-        // Extract icon and name
+        // Extract icon and name (format: "🔐 1password")
         const nameMatch = nameWithIcon.trim().match(/^(\S+)\s+(.+)$/);
         const icon = nameMatch ? nameMatch[1] : '📦';
         const name = nameMatch ? nameMatch[2] : nameWithIcon.trim();
