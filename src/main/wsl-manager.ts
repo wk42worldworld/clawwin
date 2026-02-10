@@ -52,7 +52,7 @@ export class WSLManager extends EventEmitter {
   private readonly GATEWAY_PORT = 18789;
   private readonly GATEWAY_TOKEN = 'openclaw-desktop-local';
   private readonly HEALTH_CHECK_INTERVAL = 10000; // 10s
-  private readonly STARTUP_TIMEOUT = 60000; // 60s (cold WSL2 boot can take 15-20s)
+  private readonly STARTUP_TIMEOUT = 180000; // 180s (3 minutes - first-time gateway startup can take 2+ minutes)
 
   // Where bundled resources live (image/, scripts/) — set to process.resourcesPath in production
   private resourcesDir: string;
@@ -63,6 +63,8 @@ export class WSLManager extends EventEmitter {
   private _status: WSLStatus = 'stopped';
   private proxyServer: net.Server | null = null;
   private cachedWSLIP: string = '';
+  private systemdAvailable: boolean | null = null;
+  private gatewayProcess: any = null; // Child process for non-systemd mode
 
   constructor(resourcesDir: string, dataDir?: string) {
     super();
@@ -473,6 +475,28 @@ export class WSLManager extends EventEmitter {
   }
 
   /**
+   * Check if systemd is available and working in WSL
+   */
+  private async checkSystemdAvailable(): Promise<boolean> {
+    if (this.systemdAvailable !== null) {
+      return this.systemdAvailable;
+    }
+
+    try {
+      const { stdout } = await this.execInDistro('systemctl --user is-system-running 2>&1', { timeout: 10000 });
+      // If systemd is available, it will return status like "running", "degraded", etc.
+      // If not available, it will error with "Failed to connect to bus"
+      this.systemdAvailable = !stdout.includes('Failed to connect to bus');
+      log.info(`Systemd availability check: ${this.systemdAvailable ? 'available' : 'not available'}`);
+      return this.systemdAvailable;
+    } catch (err) {
+      log.warn('Systemd not available, will use direct gateway run mode');
+      this.systemdAvailable = false;
+      return false;
+    }
+  }
+
+  /**
    * Install the gateway as a systemd service (idempotent).
    * Creates ~/.config/systemd/user/openclaw-gateway.service
    */
@@ -738,13 +762,13 @@ export class WSLManager extends EventEmitter {
   }
 
   /**
-   * Start OpenClaw gateway inside WSL2 via systemd service.
+   * Start OpenClaw gateway inside WSL2 via systemd service or direct run.
    *
    * Flow:
    * 1. Pre-warm WSL2 (avoid cold-boot timeout)
    * 2. Set config (mode + token)
-   * 3. Install systemd service if needed
-   * 4. Start the service
+   * 3. Check systemd availability
+   * 4. Start via systemd service OR direct run
    * 5. Set up port forwarding (WSL2 localhost forwarding is unreliable)
    * 6. Wait for health check
    * 7. Auto-approve pending local devices
@@ -765,12 +789,20 @@ export class WSLManager extends EventEmitter {
       // Step 2: Ensure gateway config
       await this.ensureGatewayConfig();
 
-      // Step 3: Install systemd service (idempotent)
-      await this.installGatewayService();
+      // Step 3: Check systemd availability
+      const systemdAvailable = await this.checkSystemdAvailable();
 
-      // Step 4: Start the service
-      log.info('Starting gateway service...');
-      await this.execInDistro('openclaw gateway start', { timeout: 60000 });
+      // Step 4: Start the gateway
+      if (systemdAvailable) {
+        // Systemd mode: install and start service
+        await this.installGatewayService();
+        log.info('Starting gateway service via systemd...');
+        await this.execInDistro('openclaw gateway start', { timeout: 60000 });
+      } else {
+        // Direct run mode: spawn gateway as background process
+        log.info('Starting gateway in direct run mode (systemd not available)...');
+        await this.startGatewayDirect();
+      }
 
       // Step 5: Set up port forwarding (TCP proxy or netsh fallback)
       await this.setupPortProxy();
@@ -803,7 +835,32 @@ export class WSLManager extends EventEmitter {
   }
 
   /**
-   * Stop the OpenClaw gateway service
+   * Start gateway directly without systemd (for older WSL versions).
+   * Runs `openclaw gateway run` as a background process.
+   */
+  private async startGatewayDirect(): Promise<void> {
+    // Kill any existing gateway process first
+    try {
+      await this.execInDistro('pkill -f "openclaw gateway" || true', { timeout: 10000 });
+      await new Promise(r => setTimeout(r, 2000)); // Wait for process to die
+    } catch {}
+
+    // Start gateway as background process using nohup with --allow-unconfigured flag
+    const command = `nohup openclaw gateway run --port ${this.GATEWAY_PORT} --bind lan --token ${this.GATEWAY_TOKEN} --allow-unconfigured > ~/.openclaw/gateway.log 2>&1 &`;
+
+    try {
+      await this.execInDistro(command, { timeout: 10000 });
+      log.info('Gateway process started in background');
+      // Give it more time to start
+      await new Promise(r => setTimeout(r, 3000));
+    } catch (err) {
+      log.error('Failed to start gateway in direct mode:', err);
+      throw err;
+    }
+  }
+
+  /**
+   * Stop the OpenClaw gateway service or process
    */
   async stopGateway(): Promise<void> {
     log.info('Stopping OpenClaw gateway...');
@@ -811,16 +868,23 @@ export class WSLManager extends EventEmitter {
     await this.stopLocalProxy();
 
     try {
-      await this.execInDistro('openclaw gateway stop', { timeout: 30000 });
+      if (this.systemdAvailable) {
+        // Stop systemd service
+        await this.execInDistro('openclaw gateway stop', { timeout: 30000 });
+      } else {
+        // Kill direct run process
+        await this.execInDistro('pkill -f "openclaw gateway run" || true', { timeout: 10000 });
+      }
     } catch (err) {
-      log.warn('Failed to stop gateway service:', err);
+      log.warn('Failed to stop gateway:', err);
     }
 
+    this.gatewayProcess = null;
     this.setStatus('stopped');
   }
 
   /**
-   * Restart the gateway service
+   * Restart the gateway service or process
    */
   async restartGateway(): Promise<boolean> {
     log.info('Restarting OpenClaw gateway...');
@@ -828,7 +892,16 @@ export class WSLManager extends EventEmitter {
     await this.stopLocalProxy();
 
     try {
-      await this.execInDistro('openclaw gateway restart', { timeout: 60000 });
+      if (this.systemdAvailable) {
+        // Restart systemd service
+        await this.execInDistro('openclaw gateway restart', { timeout: 60000 });
+      } else {
+        // Stop and start direct run process
+        await this.execInDistro('pkill -f "openclaw gateway run" || true', { timeout: 10000 });
+        await new Promise(r => setTimeout(r, 1000));
+        await this.startGatewayDirect();
+      }
+
       // Re-establish port forwarding (WSL IP may have changed)
       await this.setupPortProxy();
       const healthy = await this.waitForHealthy(this.STARTUP_TIMEOUT);
