@@ -65,6 +65,18 @@ var I18n = (function () {
       "settings.about": "About",
       "settings.about.version": "Version",
       "settings.reset.wizard": "Re-run Setup Wizard",
+      "settings.channels": "Configure Chat Channels",
+      "settings.channels.title": "Chat Channels",
+      "settings.channels.desc": "Configure messaging platforms to connect OpenClaw with your chat apps.",
+      "settings.channels.configure": "Configure Chat Channels",
+      "settings.workspace": "Configure Workspace",
+      "settings.workspace.title": "Workspace",
+      "settings.workspace.desc": "Configure where OpenClaw stores and accesses your files.",
+      "settings.workspace.configure": "Configure Workspace",
+      "settings.skills": "Configure Skills",
+      "settings.skills.title": "Skills",
+      "settings.skills.desc": "Enable or disable OpenClaw skills to extend functionality.",
+      "settings.skills.configure": "Configure Skills",
       "chat.title": "Chat",
       "chat.new": "New Chat",
       "chat.history": "Chat History",
@@ -105,6 +117,10 @@ var I18n = (function () {
       "wizard.step.welcome": "Welcome",
       "wizard.step.wsl2check": "WSL2 Check",
       "wizard.step.install": "Install",
+      "wizard.step.aiconfig": "AI Config",
+      "wizard.step.channels": "Channels",
+      "wizard.step.workspace": "Workspace",
+      "wizard.step.skills": "Skills",
       "wizard.step.complete": "Complete",
 
       // Step 1
@@ -181,7 +197,30 @@ var I18n = (function () {
       "wizard.aiconfig.test.success": "Connection successful!",
       "wizard.aiconfig.test.failed": "Connection failed: ",
 
-      // Step 5
+      // Step 5 - Channels
+      "wizard.step.channels": "Channels",
+      "wizard.channels.title": "Configure Chat Channels",
+      "wizard.channels.desc": "Select and configure the messaging platforms you want to connect with OpenClaw.",
+      "wizard.channels.skip": "Skip For Now",
+
+      // Step 6 - Workspace
+      "wizard.workspace.title": "Configure Workspace",
+      "wizard.workspace.desc": "Choose where OpenClaw will store your files and work with them.",
+      "wizard.workspace.path": "Workspace Path",
+      "wizard.workspace.placeholder": "E:\\openclaw-workspace",
+      "wizard.workspace.browse": "Browse",
+      "wizard.workspace.help": "Windows paths will be automatically converted to WSL paths. Default: Desktop folder.",
+      "wizard.workspace.skip": "Use Default",
+
+      // Step 7 - Skills
+      "wizard.skills.title": "Enable Skills",
+      "wizard.skills.desc": "Skills extend OpenClaw's capabilities. Enable the ones you want to use.",
+      "wizard.skills.filter.ready": "Show Ready Only",
+      "wizard.skills.selectall": "Select All Ready",
+      "wizard.skills.loading": "Loading skills...",
+      "wizard.skills.skip": "Skip For Now",
+
+      // Step 8 - Complete
       "wizard.complete.title": "Setup Complete!",
       "wizard.complete.desc": "OpenClaw has been successfully installed and configured on your system. You can now start using your AI assistant.",
       "wizard.complete.tips": "Quick Tips",
@@ -251,6 +290,18 @@ var I18n = (function () {
       "settings.about": "\u5173\u4e8e",
       "settings.about.version": "\u7248\u672c",
       "settings.reset.wizard": "\u91cd\u65b0\u8fd0\u884c\u5b89\u88c5\u5411\u5bfc",
+      "settings.channels": "\u914d\u7f6e\u804a\u5929\u9891\u9053",
+      "settings.channels.title": "\u804a\u5929\u9891\u9053",
+      "settings.channels.desc": "\u914d\u7f6e\u804a\u5929\u5e73\u53f0\u4ee5\u5c06 OpenClaw \u8fde\u63a5\u5230\u60a8\u7684\u804a\u5929\u5e94\u7528\u3002",
+      "settings.channels.configure": "\u914d\u7f6e\u804a\u5929\u9891\u9053",
+      "settings.workspace": "\u914d\u7f6e\u5de5\u4f5c\u533a",
+      "settings.workspace.title": "\u5de5\u4f5c\u533a",
+      "settings.workspace.desc": "\u914d\u7f6e OpenClaw \u5b58\u50a8\u548c\u8bbf\u95ee\u6587\u4ef6\u7684\u4f4d\u7f6e\u3002",
+      "settings.workspace.configure": "\u914d\u7f6e\u5de5\u4f5c\u533a",
+      "settings.skills": "\u914d\u7f6e\u6280\u80fd",
+      "settings.skills.title": "\u6280\u80fd",
+      "settings.skills.desc": "\u542f\u7528\u6216\u7981\u7528 OpenClaw \u6280\u80fd\u6765\u6269\u5c55\u529f\u80fd\u3002",
+      "settings.skills.configure": "\u914d\u7f6e\u6280\u80fd",
       "chat.title": "\u804a\u5929",
       "chat.new": "\u65b0\u5bf9\u8bdd",
       "chat.history": "\u804a\u5929\u8bb0\u5f55",
@@ -291,6 +342,10 @@ var I18n = (function () {
       "wizard.step.welcome": "\u6b22\u8fce",
       "wizard.step.wsl2check": "WSL2 \u68c0\u67e5",
       "wizard.step.install": "\u5b89\u88c5",
+      "wizard.step.aiconfig": "AI \u914d\u7f6e",
+      "wizard.step.channels": "\u804a\u5929\u9891\u9053",
+      "wizard.step.workspace": "\u5de5\u4f5c\u533a",
+      "wizard.step.skills": "\u6280\u80fd",
       "wizard.step.complete": "\u5b8c\u6210",
 
       // Step 1
@@ -367,7 +422,30 @@ var I18n = (function () {
       "wizard.aiconfig.test.success": "\u8fde\u63a5\u6210\u529f\uff01",
       "wizard.aiconfig.test.failed": "\u8fde\u63a5\u5931\u8d25\uff1a",
 
-      // Step 5
+      // Step 5 - Channels
+      "wizard.step.channels": "\u804a\u5929\u9891\u9053",
+      "wizard.channels.title": "\u914d\u7f6e\u804a\u5929\u9891\u9053",
+      "wizard.channels.desc": "\u9009\u62e9\u5e76\u914d\u7f6e\u60a8\u60f3\u8981\u4e0e OpenClaw \u8fde\u63a5\u7684\u804a\u5929\u5e73\u53f0\u3002",
+      "wizard.channels.skip": "\u8df3\u8fc7",
+
+      // Step 6 - Workspace
+      "wizard.workspace.title": "\u914d\u7f6e\u5de5\u4f5c\u533a",
+      "wizard.workspace.desc": "\u9009\u62e9 OpenClaw \u5b58\u50a8\u6587\u4ef6\u7684\u4f4d\u7f6e\u3002",
+      "wizard.workspace.path": "\u5de5\u4f5c\u533a\u8def\u5f84",
+      "wizard.workspace.placeholder": "E:\\openclaw-workspace",
+      "wizard.workspace.browse": "\u6d4f\u89c8",
+      "wizard.workspace.help": "Windows \u8def\u5f84\u5c06\u81ea\u52a8\u8f6c\u6362\u4e3a WSL \u8def\u5f84\u3002\u9ed8\u8ba4\uff1a\u684c\u9762\u6587\u4ef6\u5939\u3002",
+      "wizard.workspace.skip": "\u4f7f\u7528\u9ed8\u8ba4",
+
+      // Step 7 - Skills
+      "wizard.skills.title": "\u542f\u7528\u6280\u80fd",
+      "wizard.skills.desc": "\u6280\u80fd\u53ef\u4ee5\u6269\u5c55 OpenClaw \u7684\u80fd\u529b\u3002\u9009\u62e9\u60a8\u60f3\u8981\u4f7f\u7528\u7684\u6280\u80fd\u3002",
+      "wizard.skills.filter.ready": "\u53ea\u663e\u793a\u5c31\u7eea\u7684",
+      "wizard.skills.selectall": "\u5168\u9009\u5c31\u7eea\u7684",
+      "wizard.skills.loading": "\u52a0\u8f7d\u6280\u80fd\u4e2d...",
+      "wizard.skills.skip": "\u8df3\u8fc7",
+
+      // Step 8 - Complete
       "wizard.complete.title": "\u8bbe\u7f6e\u5b8c\u6210\uff01",
       "wizard.complete.desc": "OpenClaw \u5df2\u6210\u529f\u5b89\u88c5\u5e76\u914d\u7f6e\u5728\u60a8\u7684\u7cfb\u7edf\u4e0a\u3002\u60a8\u73b0\u5728\u53ef\u4ee5\u5f00\u59cb\u4f7f\u7528 AI \u52a9\u624b\u3002",
       "wizard.complete.tips": "\u5feb\u901f\u63d0\u793a",
