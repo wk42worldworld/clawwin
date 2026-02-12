@@ -10,7 +10,7 @@
  * - Execute commands inside WSL2 distro
  */
 
-import { execFile } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { EventEmitter } from 'events';
 import * as path from 'path';
@@ -21,6 +21,7 @@ import * as os from 'os';
 import log from 'electron-log';
 
 const execFileAsync = promisify(execFile);
+const execAsync = promisify(exec);
 
 export type WSLStatus =
   | 'not_installed'      // WSL2 features not enabled
@@ -262,37 +263,25 @@ export class WSLManager extends EventEmitter {
   }
 
   /**
-   * Install WSL2 using the modern `wsl --install` command.
-   * Available on Windows 10 21H2+ and Windows 11.
-   * Falls back to PowerShell feature enable + kernel MSI for older builds.
+   * Install WSL2 fully offline.
+   * Uses PowerShell to enable Windows features + bundled kernel MSI.
+   * Does NOT call `wsl --install` (which triggers Microsoft Store download).
    * Returns whether a restart is needed.
    */
   async installWSLComplete(): Promise<{ success: boolean; needsRestart: boolean }> {
-    log.info('Installing WSL2 (full install)...');
+    log.info('Installing WSL2 (offline mode)...');
 
-    // Try modern approach first: wsl --install --no-distribution
-    // This enables features, installs the kernel, and sets WSL2 as default
-    try {
-      await execFileAsync('wsl.exe', [
-        '--install', '--no-distribution',
-      ], { timeout: 120000, windowsHide: true });
-      log.info('wsl --install completed');
-    } catch (err: any) {
-      // wsl --install may exit with non-zero but still make changes
-      log.warn('wsl --install exited with error (may still have enabled features):', err.message);
-    }
-
-    // After attempting install, check if features are actually enabled
+    // Check if features are already enabled
     const features = await this.checkWindowsFeatures();
     if (features.wsl && features.vmPlatform) {
-      // Features are enabled — no restart needed, install succeeded
-      log.info('WSL2 features confirmed enabled');
+      log.info('WSL2 features already enabled');
+      // Install kernel MSI just in case
+      await this.installWSLKernel();
       await this.setDefaultVersion();
       return { success: true, needsRestart: false };
     }
 
-    // Features not yet active — could be EnablePending (needs restart)
-    // Try the PowerShell fallback to enable any remaining features
+    // Enable WSL + VirtualMachinePlatform via PowerShell (offline, built into Windows)
     const featureResult = await this.enableWSLFeatures();
     if (!featureResult.success) {
       return { success: false, needsRestart: false };
@@ -302,7 +291,7 @@ export class WSLManager extends EventEmitter {
       return { success: true, needsRestart: true };
     }
 
-    // Features enabled without restart — install kernel if needed
+    // Features enabled without restart — install kernel from bundled MSI
     const kernelInstalled = await this.installWSLKernel();
     if (!kernelInstalled) {
       log.warn('WSL kernel install failed/skipped — may already be present');
@@ -393,10 +382,11 @@ export class WSLManager extends EventEmitter {
     this.emit('import-progress', 'Importing Linux image...');
 
     try {
-      await this.runWslCommand(
-        ['--import', this.DISTRO_NAME, wslDir, tarPath],
-        { timeout: 600000 } // 10 min timeout for large images on slow disks
-      );
+      // Use shell exec with quoted paths to handle spaces in paths
+      // (wsl.exe --import has known issues with spaces when using execFile array args)
+      const cmd = `wsl.exe --import "${this.DISTRO_NAME}" "${wslDir}" "${tarPath}"`;
+      log.info('Import command:', cmd);
+      await execAsync(cmd, { timeout: 600000, windowsHide: true });
       log.info('Distro imported successfully');
       this.emit('import-progress', 'Import complete');
 
