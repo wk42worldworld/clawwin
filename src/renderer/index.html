@@ -301,12 +301,12 @@
                 type="text"
                 id="workspace-path-input"
                 class="form-input"
-                placeholder="E:\openclaw-workspace"
+                placeholder="D:\openclaw-workspace"
               />
               <button class="btn btn-secondary" id="btn-browse-workspace-modal">Browse</button>
             </div>
             <small class="help-text">
-              Windows paths (C:\, E:\, etc.) will be automatically converted to WSL paths. Leave empty for default (Desktop).
+              Windows paths (C:\, D:\, etc.) will be automatically converted to WSL paths. Leave empty for default (D:\).
             </small>
           </div>
           <div class="status-message" id="workspace-config-status"></div>
@@ -1134,7 +1134,7 @@
           } else {
             result = await api.configureWorkspace();
             hideLoading();
-            statusEl.textContent = 'Using default workspace (Desktop)';
+            statusEl.textContent = 'Using default workspace (D:\\)';
             statusEl.className = 'status-message status-success';
             appendLog('Using default workspace');
           }

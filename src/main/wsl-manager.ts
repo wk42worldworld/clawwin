@@ -1158,7 +1158,7 @@ export class WSLManager extends EventEmitter {
    */
   async configureWorkspace(windowsPath?: string): Promise<boolean> {
     try {
-      const targetPath = windowsPath || os.homedir();
+      const targetPath = windowsPath || 'D:\\';
       const wslPath = this.windowsPathToWSL(targetPath);
       log.info(`Configuring workspace to: ${wslPath}`);
       await this.execInDistro(

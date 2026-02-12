@@ -341,13 +341,13 @@
                 type="text"
                 id="workspace-path"
                 class="form-input"
-                placeholder="E:\openclaw-workspace"
+                placeholder="D:\openclaw-workspace"
                 data-i18n-placeholder="wizard.workspace.placeholder"
               />
               <button class="btn btn-secondary" id="btn-browse-workspace" data-i18n="wizard.workspace.browse">Browse</button>
             </div>
             <small class="help-text" data-i18n="wizard.workspace.help">
-              Windows paths (C:\, E:\, etc.) will be automatically converted to WSL paths. Default: Desktop folder.
+              Windows paths (C:\, D:\, etc.) will be automatically converted to WSL paths. Default: D:\ drive.
             </small>
           </div>
 
@@ -1114,9 +1114,10 @@
       });
 
       document.getElementById('btn-browse-workspace').addEventListener('click', async function() {
-        // Note: Electron dialog requires main process
-        // For now, users can manually type the path
-        alert('Please enter your Windows path manually (e.g., E:\\my-workspace).\n\nFuture version will include a folder picker dialog.');
+        var selected = await api.browseFolder();
+        if (selected) {
+          document.getElementById('workspace-path').value = selected;
+        }
       });
 
       document.getElementById('btn-next-6').addEventListener('click', async function() {
@@ -1141,7 +1142,7 @@
               throw new Error('Failed to configure workspace');
             }
           } else {
-            statusEl.textContent = 'Using default workspace (Desktop)';
+            statusEl.textContent = 'Using default workspace (D:\\)';
             statusEl.className = 'status-message';
             await api.configureWorkspace(); // Use default
           }
