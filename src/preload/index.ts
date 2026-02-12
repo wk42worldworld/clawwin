@@ -111,6 +111,9 @@ const openclawAPI = {
   configureWorkspace: (windowsPath?: string): Promise<boolean> =>
     ipcRenderer.invoke('configure-workspace', windowsPath),
 
+  browseFolder: (): Promise<string | null> =>
+    ipcRenderer.invoke('browse-folder'),
+
   // ─── Channel Configuration ────────────────────────────────
 
   configureChannel: (config: {
@@ -141,7 +144,55 @@ const openclawAPI = {
     description: string;
     ready: boolean;
     source: string;
+    missing: {
+      bins: string[];
+      anyBins: string[];
+      env: string[];
+      config: string[];
+      os: string[];
+    } | null;
+    install: Array<{
+      id: string;
+      kind: string;
+      label: string;
+      bins: string[];
+    }>;
+    homepage: string;
   }>> => ipcRenderer.invoke('list-skills'),
+
+  installSkill: (skillName: string, installMethod: {
+    id: string;
+    kind: string;
+    label: string;
+    bins: string[];
+  }): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('install-skill', skillName, installMethod),
+
+  openSkillsDir: (): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('open-skills-dir'),
+
+  searchCommunitySkills: (query: string): Promise<{
+    items: Array<{
+      name: string;
+      slug: string;
+      description: string;
+      author: string;
+      stars: number;
+      downloads: number;
+      version: string;
+      url: string;
+      cloneUrl: string;
+      updatedAt: string;
+      tags: string[];
+    }>;
+    error?: string;
+  }> => ipcRenderer.invoke('search-community-skills', query),
+
+  installSkillFromUrl: (url: string): Promise<{ success: boolean; message: string; name?: string }> =>
+    ipcRenderer.invoke('install-skill-from-url', url),
+
+  uninstallCommunitySkill: (name: string): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('uninstall-community-skill', name),
 
   // ─── Event Listeners ──────────────────────────────────────
 

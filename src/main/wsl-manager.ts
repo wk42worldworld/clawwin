@@ -47,6 +47,28 @@ export interface GatewayInfo {
   version?: string;
 }
 
+export interface SkillInfo {
+  name: string;
+  icon: string;
+  description: string;
+  ready: boolean;
+  source: string;
+  missing: {
+    bins: string[];
+    anyBins: string[];
+    env: string[];
+    config: string[];
+    os: string[];
+  } | null;
+  install: Array<{
+    id: string;
+    kind: string;
+    label: string;
+    bins: string[];
+  }>;
+  homepage: string;
+}
+
 export class WSLManager extends EventEmitter {
   private readonly DISTRO_NAME = 'OpenClaw';
   private readonly GATEWAY_PORT = 18789;
@@ -1379,83 +1401,184 @@ export class WSLManager extends EventEmitter {
   /**
    * List all available skills with their status (ready vs missing).
    */
-  async listSkills(): Promise<Array<{
-    name: string;
-    icon: string;
-    description: string;
-    ready: boolean;
-    source: string;
-  }>> {
+  private readonly FALLBACK_SKILLS: SkillInfo[] = [
+    { name: 'coding-agent', icon: '🧩', description: 'Run Codex CLI, Claude Code, or Pi Coding Agent', ready: true, source: 'openclaw-bundled', missing: null, install: [], homepage: '' },
+    { name: 'healthcheck', icon: '📦', description: 'Host security hardening and risk-tolerance configuration', ready: true, source: 'openclaw-bundled', missing: null, install: [], homepage: '' },
+    { name: 'skill-creator', icon: '📦', description: 'Create or update AgentSkills', ready: true, source: 'openclaw-bundled', missing: null, install: [], homepage: '' },
+    { name: 'tmux', icon: '🧵', description: 'Remote-control tmux sessions', ready: true, source: 'openclaw-bundled', missing: null, install: [], homepage: '' },
+    { name: 'weather', icon: '🌤️', description: 'Get current weather and forecasts', ready: true, source: 'openclaw-bundled', missing: null, install: [], homepage: '' },
+    { name: 'windows-path', icon: '🪟', description: 'Automatically detect and convert Windows paths to WSL paths', ready: true, source: 'openclaw-bundled', missing: null, install: [], homepage: '' }
+  ];
+
+  /**
+   * Try to extract a JSON array from stdout that may contain MOTD/profile noise before the actual JSON.
+   */
+  private extractJsonFromOutput(stdout: string): any | null {
+    // Try direct parse first
+    try {
+      return JSON.parse(stdout.trim());
+    } catch {
+      // ignore
+    }
+
+    // Look for the first '[' or '{' — skip MOTD/profile output before JSON
+    const arrStart = stdout.indexOf('[');
+    const objStart = stdout.indexOf('{');
+    const start = arrStart === -1 ? objStart : objStart === -1 ? arrStart : Math.min(arrStart, objStart);
+
+    if (start > 0) {
+      try {
+        return JSON.parse(stdout.substring(start).trim());
+      } catch {
+        // ignore
+      }
+    }
+
+    return null;
+  }
+
+  async listSkills(): Promise<SkillInfo[]> {
     try {
       const { stdout } = await this.execInDistro(
         'openclaw skills list --json || openclaw skills list',
         { timeout: 30000 }
       );
 
-      // Try to parse as JSON first
-      try {
-        const skills = JSON.parse(stdout.trim());
-        return skills.map((skill: any) => ({
-          name: skill.name || skill.skill || '',
-          icon: skill.icon || '📦',
-          description: skill.description || '',
-          ready: skill.status === 'ready' || skill.ready === true,
-          source: skill.source || 'openclaw-bundled'
-        }));
-      } catch {
-        // If JSON parsing fails, parse the table format
-        return this.parseSkillsTable(stdout);
+      log.info('Skills list output length:', stdout.length);
+      log.info('Skills list raw output (first 500 chars):', stdout.substring(0, 500));
+
+      // Try to parse as JSON first (handles MOTD prefix)
+      const jsonData = this.extractJsonFromOutput(stdout);
+      if (jsonData) {
+        // Handle both array format and object-with-skills-property format
+        const skillsArray = Array.isArray(jsonData) ? jsonData : Array.isArray(jsonData.skills) ? jsonData.skills : null;
+        if (skillsArray && skillsArray.length > 0) {
+          log.info('Parsed skills as JSON, count:', skillsArray.length);
+          return skillsArray.map((skill: any) => ({
+            name: skill.name || skill.skill || '',
+            icon: skill.emoji || skill.icon || '📦',
+            description: skill.description || '',
+            ready: skill.eligible === true || skill.status === 'ready' || skill.ready === true,
+            source: skill.source || 'openclaw-bundled',
+            missing: skill.missing || null,
+            install: Array.isArray(skill.install) ? skill.install : [],
+            homepage: skill.homepage || ''
+          }));
+        }
+        log.info('JSON parsed but resulted in empty or invalid skills array');
       }
+
+      // If JSON parsing fails or returns empty, try table format
+      log.info('Trying table format parsing');
+      const parsed = this.parseSkillsTable(stdout);
+      log.info('Parsed skills from table, count:', parsed.length);
+      if (parsed.length > 0) {
+        return parsed;
+      }
+
+      // Both parsers returned empty — use fallback
+      log.warn('Both JSON and table parsing returned empty, using fallback skills');
+      return [...this.FALLBACK_SKILLS];
     } catch (err: any) {
       log.error('Failed to list skills:', err);
-      // Return a minimal set of known ready skills as fallback
-      return [
-        { name: 'coding-agent', icon: '🧩', description: 'Run Codex CLI, Claude Code, or Pi Coding Agent', ready: true, source: 'openclaw-bundled' },
-        { name: 'healthcheck', icon: '📦', description: 'Host security hardening and risk-tolerance configuration', ready: true, source: 'openclaw-bundled' },
-        { name: 'skill-creator', icon: '📦', description: 'Create or update AgentSkills', ready: true, source: 'openclaw-bundled' },
-        { name: 'tmux', icon: '🧵', description: 'Remote-control tmux sessions', ready: true, source: 'openclaw-bundled' },
-        { name: 'weather', icon: '🌤️', description: 'Get current weather and forecasts', ready: true, source: 'openclaw-bundled' },
-        { name: 'windows-path', icon: '🪟', description: 'Automatically detect and convert Windows paths to WSL paths', ready: true, source: 'openclaw-bundled' }
-      ];
+      return [...this.FALLBACK_SKILLS];
     }
   }
 
   /**
    * Parse skills list from table format output.
    */
-  private parseSkillsTable(output: string): Array<{
-    name: string;
-    icon: string;
-    description: string;
-    ready: boolean;
-    source: string;
-  }> {
+  private parseSkillsTable(output: string): SkillInfo[] {
     const skills: Array<any> = [];
     const lines = output.split('\n');
+    log.info('Parsing table with', lines.length, 'lines');
+
+    // Log first 10 lines for debugging
+    log.info('First 10 lines of output:');
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+      log.info(`Line ${i}: "${lines[i]}"`);
+      if (i < 3 && lines[i].length > 0) {
+        // Log character codes for first 20 chars
+        const chars = lines[i].substring(0, 20).split('').map(c => `${c}(${c.charCodeAt(0)})`).join(' ');
+        log.info(`  Char codes: ${chars}`);
+      }
+    }
 
     for (const line of lines) {
-      // Match table rows (status | name | description | source)
-      // Only match lines that start with status symbol (✓ or ✗) in the first column
-      const match = line.match(/│\s*(✓|✗)\s+(ready|missing)\s*│\s*(.+?)\s*│\s*(.+?)\s*│\s*(.+?)\s*│/);
-      if (match) {
-        const [, statusSymbol, , nameWithIcon, description, source] = match;
-        const ready = statusSymbol === '✓';
+      // Try to match lines that contain pipe characters and look like data rows
+      // Look for pattern: pipe, status (ready/missing or checkmark/x), pipe, name, pipe, description, pipe, source, pipe
+
+      // First try with Unicode box-drawing characters
+      let match = line.match(/│\s*(✓|✗)\s+(ready|missing)\s*│\s*(.+?)\s*│\s*(.+?)\s*│\s*(.+?)\s*│/);
+
+      // If that doesn't work, try with regular pipe character |
+      if (!match) {
+        match = line.match(/\|\s*(✓|✗|ready|missing)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|/);
+      }
+
+      // If still no match, try splitting by any pipe-like character
+      if (!match && (line.includes('│') || line.includes('|'))) {
+        const parts = line.split(/[│|]/).map(p => p.trim()).filter(p => p.length > 0);
+        if (parts.length >= 4) {
+          log.info('Trying to parse line with', parts.length, 'parts:', parts);
+
+          // Check if first part is a status indicator
+          const firstPart = parts[0];
+          const isReady = firstPart.includes('✓') || firstPart.toLowerCase().includes('ready');
+          const isMissing = firstPart.includes('✗') || firstPart.toLowerCase().includes('missing');
+
+          if (isReady || isMissing) {
+            const nameWithIcon = parts[1];
+            const description = parts[2];
+            const source = parts[3];
+
+            // Extract icon and name
+            const nameMatch = nameWithIcon.trim().match(/^(\S+)\s+(.+)$/);
+            const icon = nameMatch ? nameMatch[1] : '📦';
+            const name = nameMatch ? nameMatch[2] : nameWithIcon.trim();
+
+            log.info('Parsed skill:', name, 'ready:', isReady);
+
+            skills.push({
+              name,
+              icon,
+              description: description.trim(),
+              ready: isReady,
+              source: source.trim(),
+              missing: null,
+              install: [],
+              homepage: ''
+            });
+          }
+        }
+      } else if (match) {
+        const statusSymbol = match[1];
+        const ready = statusSymbol === '✓' || statusSymbol.toLowerCase() === 'ready';
+        const nameWithIcon = match[2] || match[3];
+        const description = match[3] || match[4];
+        const source = match[4] || match[5];
 
         // Extract icon and name (format: "🔐 1password")
         const nameMatch = nameWithIcon.trim().match(/^(\S+)\s+(.+)$/);
         const icon = nameMatch ? nameMatch[1] : '📦';
         const name = nameMatch ? nameMatch[2] : nameWithIcon.trim();
 
+        log.info('Parsed skill:', name, 'ready:', ready);
+
         skills.push({
           name,
           icon,
           description: description.trim(),
           ready,
-          source: source.trim()
+          source: source.trim(),
+          missing: null,
+          install: [],
+          homepage: ''
         });
       }
     }
 
+    log.info('Total skills parsed:', skills.length);
     return skills;
   }
 }

@@ -164,7 +164,10 @@
         <h2 data-i18n="settings.title">Settings</h2>
         <button id="settings-close" class="btn btn-icon">&times;</button>
       </div>
-      <div class="settings-body">
+      <div class="settings-body" style="position:relative;">
+        <div id="settings-loading" class="settings-loading hidden">
+          <div class="startup-spinner-ring"></div>
+        </div>
         <!-- AI Provider Configuration -->
         <div class="settings-section">
           <h3 data-i18n="settings.aiconfig">AI Provider Configuration</h3>
@@ -449,20 +452,44 @@
         <button id="skills-config-close" class="btn btn-icon">&times;</button>
       </div>
       <div class="settings-body">
-        <p style="color: var(--text-secondary); margin-bottom: 20px;">
-          Skills extend OpenClaw's capabilities. Enable the ones you want to use. Skills marked as "ready" work out of the box.
-        </p>
-        <div class="skills-filter">
-          <label>
-            <input type="checkbox" id="skills-filter-ready-modal" checked />
-            <span>Show Ready Only</span>
-          </label>
-          <button class="btn btn-small" id="btn-select-all-skills-modal">Select All Ready</button>
+        <div class="skills-tabs">
+          <button class="skills-tab active" id="skills-tab-btn-local" data-i18n="settings.skills.tab.local">Local Skills</button>
+          <button class="skills-tab" id="skills-tab-btn-community" data-i18n="settings.skills.tab.community">Community</button>
         </div>
-        <div class="skills-list" id="skills-list-modal">
-          <div class="loading-text">Loading skills...</div>
+
+        <!-- Local Skills Tab -->
+        <div class="skills-tab-content active" id="skills-tab-local">
+          <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 0.9rem;">
+            Skills extend OpenClaw's capabilities. Enable the ones you want to use.
+          </p>
+          <div class="skills-filter">
+            <label>
+              <input type="checkbox" id="skills-filter-ready-modal" checked />
+              <span>Show Ready Only</span>
+            </label>
+            <button class="btn btn-small" id="btn-select-all-skills-modal">Select All Ready</button>
+            <button class="btn btn-small" id="btn-open-skills-dir-modal">Open Skills Directory</button>
+          </div>
+          <div class="skills-list" id="skills-list-modal">
+            <div class="loading-text">Loading skills...</div>
+          </div>
+          <div class="status-message" id="skills-config-status"></div>
         </div>
-        <div class="status-message" id="skills-config-status"></div>
+
+        <!-- Community Tab -->
+        <div class="skills-tab-content" id="skills-tab-community">
+          <p class="community-hint" id="community-hint" data-i18n="settings.skills.community.hint">Search ClawdHub for community skills or paste a repo URL to install.</p>
+          <div class="community-search">
+            <input type="text" id="community-search-input" data-i18n-placeholder="settings.skills.community.search.placeholder" placeholder="Search community skills..." />
+            <button class="btn btn-primary btn-small" id="community-search-btn" data-i18n="settings.skills.community.search.btn">Search</button>
+          </div>
+          <div class="community-url-install">
+            <input type="text" id="community-url-input" data-i18n-placeholder="settings.skills.community.url.placeholder" placeholder="Paste Git repo URL to install..." />
+            <button class="btn btn-secondary btn-small" id="community-url-btn" data-i18n="settings.skills.community.url.btn">Install from URL</button>
+          </div>
+          <div class="community-results" id="community-results">
+          </div>
+        </div>
       </div>
       <div class="settings-footer">
         <div class="settings-footer-buttons">
@@ -1407,6 +1434,12 @@
       async function openSettings() {
         settingsStatus.textContent = "";
         settingsStatus.className = "settings-status";
+
+        // Show modal immediately with loading spinner
+        var settingsLoading = document.getElementById('settings-loading');
+        settingsLoading.classList.remove('hidden');
+        settingsOverlay.classList.remove("hidden");
+
         settingsLang.value = I18n.getCurrentLang() || "zh";
 
         // Load auto-start setting
@@ -1434,7 +1467,8 @@
 
         populateModelSelect(settingsProvider.value, currentModel);
 
-        settingsOverlay.classList.remove("hidden");
+        // Hide loading spinner
+        settingsLoading.classList.add('hidden');
         I18n.apply();
       }
 
@@ -1904,8 +1938,11 @@
         document.getElementById('workspace-config-overlay').classList.add('hidden');
       });
 
-      document.getElementById('btn-browse-workspace-modal').addEventListener('click', function() {
-        alert('Please enter your Windows path manually (e.g., E:\\my-workspace).\n\nFuture version will include a folder picker dialog.');
+      document.getElementById('btn-browse-workspace-modal').addEventListener('click', async function() {
+        var selected = await window.openclaw.browseFolder();
+        if (selected) {
+          document.getElementById('workspace-path-input').value = selected;
+        }
       });
 
       document.getElementById('workspace-config-save').addEventListener('click', async function() {
@@ -1953,6 +1990,10 @@
       var skillsModalSelectedSkills = [];
       var skillsModalAllSkills = [];
 
+      function t(key) {
+        return (window.i18n && window.i18n.t) ? window.i18n.t(key) : key;
+      }
+
       document.getElementById("btn-configure-skills").addEventListener("click", async function() {
         document.getElementById('skills-config-overlay').classList.remove('hidden');
         if (skillsModalAllSkills.length === 0) {
@@ -1978,6 +2019,101 @@
           renderSkillsListModal(skills);
         } catch (err) {
           skillsListEl.innerHTML = '<div class="status-message status-error">Failed to load skills: ' + err.message + '</div>';
+        }
+      }
+
+      function buildMissingDetails(skill) {
+        if (!skill.missing) return null;
+        var parts = [];
+        if (skill.missing.bins && skill.missing.bins.length > 0) {
+          parts.push('<span>' + t('settings.skills.missing.bins') + ': <code>' + skill.missing.bins.join(', ') + '</code></span>');
+        }
+        if (skill.missing.anyBins && skill.missing.anyBins.length > 0) {
+          parts.push('<span>' + t('settings.skills.missing.anyBins') + ': <code>' + skill.missing.anyBins.join(', ') + '</code></span>');
+        }
+        if (skill.missing.env && skill.missing.env.length > 0) {
+          parts.push('<span>' + t('settings.skills.missing.env') + ': <code>' + skill.missing.env.join(', ') + '</code></span>');
+        }
+        if (skill.missing.config && skill.missing.config.length > 0) {
+          parts.push('<span>' + t('settings.skills.missing.config') + ': <code>' + skill.missing.config.join(', ') + '</code></span>');
+        }
+        if (skill.missing.os && skill.missing.os.length > 0) {
+          parts.push('<span>' + t('settings.skills.missing.os') + ': <code>' + skill.missing.os.join(', ') + '</code></span>');
+        }
+        if (parts.length === 0) return null;
+        var div = document.createElement('div');
+        div.className = 'skill-missing-details';
+        div.innerHTML = parts.join('');
+        return div;
+      }
+
+      function buildSkillActions(skill) {
+        var actionsDiv = document.createElement('div');
+        actionsDiv.className = 'skill-actions';
+        var hasActions = false;
+
+        if (!skill.ready && skill.install && skill.install.length > 0) {
+          var installBtn = document.createElement('button');
+          installBtn.className = 'btn btn-small btn-primary';
+          installBtn.textContent = t('settings.skills.install');
+          installBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSkillInstall(skill, installBtn);
+          });
+          actionsDiv.appendChild(installBtn);
+          hasActions = true;
+        }
+
+        if (skill.homepage) {
+          var homepageLink = document.createElement('a');
+          homepageLink.className = 'skill-homepage-link';
+          homepageLink.textContent = '\uD83D\uDCD6 ' + t('settings.skills.homepage');
+          homepageLink.href = '#';
+          homepageLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(skill.homepage, '_blank');
+          });
+          actionsDiv.appendChild(homepageLink);
+          hasActions = true;
+        }
+
+        return hasActions ? actionsDiv : null;
+      }
+
+      async function handleSkillInstall(skill, btn) {
+        var installMethod = skill.install[0];
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+        btn.textContent = t('settings.skills.installing');
+
+        try {
+          var result = await window.openclaw.installSkill(skill.name, installMethod);
+          if (result.success) {
+            btn.textContent = '\u2713';
+            btn.classList.remove('btn-loading');
+            var statusEl = document.createElement('div');
+            statusEl.className = 'skill-install-status install-success';
+            statusEl.textContent = t('settings.skills.install.success');
+            btn.parentNode.appendChild(statusEl);
+            setTimeout(async function() {
+              skillsModalAllSkills = [];
+              await loadSkillsListModal();
+            }, 2000);
+          } else {
+            btn.textContent = t('settings.skills.install');
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            var errorEl = document.createElement('div');
+            errorEl.className = 'skill-install-status install-error';
+            errorEl.textContent = t('settings.skills.install.failed') + ': ' + result.message;
+            btn.parentNode.appendChild(errorEl);
+          }
+        } catch (err) {
+          btn.textContent = t('settings.skills.install');
+          btn.classList.remove('btn-loading');
+          btn.disabled = false;
         }
       }
 
@@ -2033,11 +2169,19 @@
 
           var statusSpan = document.createElement('div');
           statusSpan.className = 'skill-status';
-          statusSpan.textContent = skill.ready ? '✓ Ready' : '✗ Missing';
+          statusSpan.textContent = skill.ready ? '\u2713 Ready' : '\u2717 Missing';
 
           label.appendChild(nameSpan);
           label.appendChild(descSpan);
           label.appendChild(statusSpan);
+
+          if (!skill.ready) {
+            var missingDiv = buildMissingDetails(skill);
+            if (missingDiv) label.appendChild(missingDiv);
+          }
+
+          var actionsDiv = buildSkillActions(skill);
+          if (actionsDiv) label.appendChild(actionsDiv);
 
           skillCard.appendChild(checkbox);
           skillCard.appendChild(label);
@@ -2058,6 +2202,272 @@
         });
         renderSkillsListModal(skillsModalAllSkills);
       });
+
+      document.getElementById('btn-open-skills-dir-modal').addEventListener('click', async function() {
+        var btn = this;
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+        try {
+          await window.openclaw.openSkillsDir();
+        } catch (err) {
+          console.error('Failed to open skills dir:', err);
+        } finally {
+          btn.classList.remove('btn-loading');
+          btn.disabled = false;
+        }
+      });
+
+      // ─── Tab Switching ─────────────────────────────────────────
+      document.getElementById('skills-tab-btn-local').addEventListener('click', function() {
+        document.getElementById('skills-tab-btn-local').classList.add('active');
+        document.getElementById('skills-tab-btn-community').classList.remove('active');
+        document.getElementById('skills-tab-local').classList.add('active');
+        document.getElementById('skills-tab-community').classList.remove('active');
+      });
+
+      document.getElementById('skills-tab-btn-community').addEventListener('click', function() {
+        document.getElementById('skills-tab-btn-community').classList.add('active');
+        document.getElementById('skills-tab-btn-local').classList.remove('active');
+        document.getElementById('skills-tab-community').classList.add('active');
+        document.getElementById('skills-tab-local').classList.remove('active');
+      });
+
+      // ─── Community Marketplace ─────────────────────────────────
+      var communityInstalledSkills = [];
+
+      function getInstalledSkillNames() {
+        return skillsModalAllSkills.map(function(s) { return s.name; });
+      }
+
+      document.getElementById('community-search-btn').addEventListener('click', function() {
+        var query = document.getElementById('community-search-input').value.trim();
+        searchCommunitySkills(query);
+      });
+
+      document.getElementById('community-search-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          var query = this.value.trim();
+          searchCommunitySkills(query);
+        }
+      });
+
+      async function searchCommunitySkills(query) {
+        var resultsEl = document.getElementById('community-results');
+        resultsEl.innerHTML = '<div class="loading-text">Searching...</div>';
+        var btn = document.getElementById('community-search-btn');
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+
+        try {
+          var result = await window.openclaw.searchCommunitySkills(query);
+          if (result.error) {
+            resultsEl.innerHTML = '<div class="status-message status-error">' + result.error + '</div>';
+          } else if (result.items.length === 0) {
+            resultsEl.innerHTML = '<div class="status-message">' + t('settings.skills.community.empty') + '</div>';
+          } else {
+            renderCommunityResults(result.items);
+          }
+        } catch (err) {
+          resultsEl.innerHTML = '<div class="status-message status-error">Search failed: ' + err.message + '</div>';
+        } finally {
+          btn.classList.remove('btn-loading');
+          btn.disabled = false;
+        }
+      }
+
+      function renderCommunityResults(items) {
+        var resultsEl = document.getElementById('community-results');
+        var installedNames = getInstalledSkillNames();
+        resultsEl.innerHTML = '';
+
+        items.forEach(function(item) {
+          var card = document.createElement('div');
+          card.className = 'community-skill-card';
+
+          var info = document.createElement('div');
+          info.className = 'community-skill-info';
+
+          var nameDiv = document.createElement('div');
+          nameDiv.className = 'community-skill-name';
+          var nameLink = document.createElement('a');
+          nameLink.href = '#';
+          nameLink.textContent = item.name;
+          nameLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.open(item.url, '_blank');
+          });
+          nameDiv.appendChild(nameLink);
+          if (item.version) {
+            var verSpan = document.createElement('span');
+            verSpan.style.cssText = 'font-size:0.75rem;color:var(--text-muted);margin-left:6px;';
+            verSpan.textContent = t('settings.skills.community.version') + item.version;
+            nameDiv.appendChild(verSpan);
+          }
+
+          var descDiv = document.createElement('div');
+          descDiv.className = 'community-skill-desc';
+          descDiv.textContent = item.description || '';
+          descDiv.title = item.description || '';
+
+          var metaDiv = document.createElement('div');
+          metaDiv.className = 'community-skill-meta';
+          var metaHtml = '';
+          if (item.stars) metaHtml += '<span>\u2B50 ' + item.stars + ' ' + t('settings.skills.community.stars') + '</span>';
+          if (item.downloads) metaHtml += '<span>\u2B07 ' + item.downloads + ' ' + t('settings.skills.community.downloads') + '</span>';
+          if (item.author) metaHtml += '<span>' + t('settings.skills.community.by') + ' ' + item.author + '</span>';
+          metaDiv.innerHTML = metaHtml;
+
+          info.appendChild(nameDiv);
+          info.appendChild(descDiv);
+          info.appendChild(metaDiv);
+
+          if (item.tags && item.tags.length > 0) {
+            var tagsDiv = document.createElement('div');
+            tagsDiv.className = 'community-skill-tags';
+            item.tags.slice(0, 5).forEach(function(tag) {
+              var tagSpan = document.createElement('span');
+              tagSpan.className = 'community-skill-tag';
+              tagSpan.textContent = tag;
+              tagsDiv.appendChild(tagSpan);
+            });
+            info.appendChild(tagsDiv);
+          }
+
+          var actions = document.createElement('div');
+          actions.className = 'community-skill-actions';
+
+          var isInstalled = installedNames.indexOf(item.name) !== -1 || installedNames.indexOf(item.slug) !== -1;
+          if (isInstalled) {
+            var badge = document.createElement('span');
+            badge.className = 'community-installed-badge';
+            badge.textContent = '\u2713 ' + t('settings.skills.community.installed');
+            actions.appendChild(badge);
+
+            var uninstallBtn = document.createElement('button');
+            uninstallBtn.className = 'btn btn-small btn-secondary';
+            uninstallBtn.textContent = t('settings.skills.community.uninstall');
+            uninstallBtn.addEventListener('click', function() {
+              handleCommunityUninstall(item.slug || item.name, uninstallBtn, card);
+            });
+            actions.appendChild(uninstallBtn);
+          } else {
+            var installBtn = document.createElement('button');
+            installBtn.className = 'btn btn-small btn-primary';
+            installBtn.textContent = t('settings.skills.community.install');
+            installBtn.addEventListener('click', function() {
+              handleCommunityInstall(item, installBtn);
+            });
+            actions.appendChild(installBtn);
+          }
+
+          card.appendChild(info);
+          card.appendChild(actions);
+          resultsEl.appendChild(card);
+        });
+      }
+
+      async function handleCommunityInstall(item, btn) {
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+        btn.textContent = t('settings.skills.community.installing');
+
+        try {
+          var installUrl = item.cloneUrl || item.url;
+          var result = await window.openclaw.installSkillFromUrl(installUrl);
+          if (result.success) {
+            btn.textContent = '\u2713 ' + t('settings.skills.community.installed');
+            btn.classList.remove('btn-loading');
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-secondary');
+            // Refresh local skills list
+            skillsModalAllSkills = [];
+            loadSkillsListModal();
+          } else {
+            btn.textContent = t('settings.skills.community.install');
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            alert(result.message);
+          }
+        } catch (err) {
+          btn.textContent = t('settings.skills.community.install');
+          btn.classList.remove('btn-loading');
+          btn.disabled = false;
+        }
+      }
+
+      async function handleCommunityUninstall(name, btn, card) {
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+        btn.textContent = t('settings.skills.community.uninstalling');
+
+        try {
+          var result = await window.openclaw.uninstallCommunitySkill(name);
+          if (result.success) {
+            card.style.opacity = '0.5';
+            btn.textContent = t('settings.skills.community.install');
+            btn.classList.remove('btn-loading', 'btn-secondary');
+            btn.classList.add('btn-primary');
+            btn.disabled = false;
+            // Refresh local skills list
+            skillsModalAllSkills = [];
+            loadSkillsListModal();
+          } else {
+            btn.textContent = t('settings.skills.community.uninstall');
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            alert(result.message);
+          }
+        } catch (err) {
+          btn.textContent = t('settings.skills.community.uninstall');
+          btn.classList.remove('btn-loading');
+          btn.disabled = false;
+        }
+      }
+
+      // URL Install
+      document.getElementById('community-url-btn').addEventListener('click', function() {
+        handleUrlInstall();
+      });
+
+      document.getElementById('community-url-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') handleUrlInstall();
+      });
+
+      async function handleUrlInstall() {
+        var urlInput = document.getElementById('community-url-input');
+        var url = urlInput.value.trim();
+        if (!url) return;
+
+        var btn = document.getElementById('community-url-btn');
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+        btn.textContent = t('settings.skills.community.installing');
+
+        try {
+          var result = await window.openclaw.installSkillFromUrl(url);
+          if (result.success) {
+            btn.textContent = '\u2713 ' + t('settings.skills.community.installed');
+            btn.classList.remove('btn-loading');
+            urlInput.value = '';
+            // Refresh local skills list
+            skillsModalAllSkills = [];
+            loadSkillsListModal();
+            setTimeout(function() {
+              btn.textContent = t('settings.skills.community.url.btn');
+              btn.disabled = false;
+            }, 2000);
+          } else {
+            btn.textContent = t('settings.skills.community.url.btn');
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            alert(result.message);
+          }
+        } catch (err) {
+          btn.textContent = t('settings.skills.community.url.btn');
+          btn.classList.remove('btn-loading');
+          btn.disabled = false;
+        }
+      }
 
       document.getElementById('skills-config-save').addEventListener('click', async function() {
         var btn = this;

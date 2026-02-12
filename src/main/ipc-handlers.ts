@@ -6,12 +6,13 @@
  * an `ipcRenderer.invoke()` call made from the preload/renderer.
  */
 
-import { ipcMain, BrowserWindow, app } from 'electron';
+import { ipcMain, BrowserWindow, app, dialog } from 'electron';
 import * as path from 'path';
 import { execFile } from 'child_process';
+import * as https from 'https';
 import log from 'electron-log';
 import Store from 'electron-store';
-import { WSLManager, WSLCheckResult, WSLStatus, GatewayInfo } from './wsl-manager';
+import { WSLManager, WSLCheckResult, WSLStatus, GatewayInfo, SkillInfo } from './wsl-manager';
 import { StoreSchema } from './store-schema';
 
 export function registerIPCHandlers(
@@ -337,6 +338,19 @@ export function registerIPCHandlers(
     }
   });
 
+  /**
+   * browse-folder: Opens a native folder picker dialog.
+   */
+  ipcMain.handle('browse-folder', async (): Promise<string | null> => {
+    const win = getMainWindow();
+    if (!win) return null;
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory']
+    });
+    if (result.canceled || !result.filePaths.length) return null;
+    return result.filePaths[0];
+  });
+
   // ─── Channel Configuration ───────────────────────────────────
 
   /**
@@ -389,19 +403,221 @@ export function registerIPCHandlers(
   /**
    * list-skills: Returns all available skills with their status.
    */
-  ipcMain.handle('list-skills', async (): Promise<Array<{
-    name: string;
-    icon: string;
-    description: string;
-    ready: boolean;
-    source: string;
-  }>> => {
-    log.info('IPC: list-skills');
+  ipcMain.handle('list-skills', async (): Promise<SkillInfo[]> => {
+    log.info('IPC: list-skills called');
     try {
-      return await wslManager.listSkills();
+      const skills = await wslManager.listSkills();
+      log.info('IPC: list-skills returned', skills.length, 'skills');
+      return skills;
     } catch (err: any) {
-      log.error('IPC: list-skills error:', err);
+      log.error('IPC: list-skills error:', err?.message, err?.stack);
       return [];
+    }
+  });
+
+  /**
+   * install-skill: Installs dependencies for a skill inside WSL2.
+   */
+  ipcMain.handle('install-skill', async (_event, skillName: string, installMethod: {
+    id: string;
+    kind: string;
+    label: string;
+    bins: string[];
+  }): Promise<{ success: boolean; message: string }> => {
+    log.info('IPC: install-skill called for', skillName, 'method:', installMethod.kind);
+    try {
+      let command: string;
+      const bins = installMethod.bins.join(' ');
+      switch (installMethod.kind) {
+        case 'brew':
+          command = `brew install ${bins}`;
+          break;
+        case 'apt':
+          command = `sudo apt-get install -y ${bins}`;
+          break;
+        case 'pip':
+        case 'pip3':
+          command = `pip3 install ${bins}`;
+          break;
+        case 'npm':
+          command = `npm install -g ${bins}`;
+          break;
+        case 'go':
+          command = `go install ${bins}`;
+          break;
+        case 'cargo':
+          command = `cargo install ${bins}`;
+          break;
+        default:
+          command = `${installMethod.kind} install ${bins}`;
+          break;
+      }
+
+      log.info('install-skill running command:', command);
+      const { stdout, stderr } = await wslManager.execInDistro(command, { timeout: 120000 });
+      log.info('install-skill stdout:', stdout.substring(0, 500));
+      if (stderr) log.warn('install-skill stderr:', stderr.substring(0, 500));
+      return { success: true, message: 'Installation completed successfully' };
+    } catch (err: any) {
+      log.error('install-skill error:', err?.message);
+      return { success: false, message: err?.message || 'Installation failed' };
+    }
+  });
+
+  /**
+   * open-skills-dir: Opens the WSL skills directory in Windows Explorer.
+   */
+  ipcMain.handle('open-skills-dir', async (): Promise<{ success: boolean; message: string }> => {
+    log.info('IPC: open-skills-dir called');
+    try {
+      await wslManager.execInDistro('mkdir -p /root/.openclaw/skills', { timeout: 10000 });
+      const windowsPath = '\\\\wsl$\\OpenClaw\\root\\.openclaw\\skills';
+      execFile('explorer.exe', [windowsPath], { windowsHide: false }, (err) => {
+        if (err) log.warn('open-skills-dir explorer error:', err.message);
+      });
+      return { success: true, message: 'Opened skills directory' };
+    } catch (err: any) {
+      log.error('open-skills-dir error:', err?.message);
+      return { success: false, message: err?.message || 'Failed to open skills directory' };
+    }
+  });
+
+  // ─── Community Marketplace (ClawdHub) ──────────────────────
+
+  /**
+   * search-community-skills: Search ClawdHub for community skills.
+   * API: GET https://clawhub.ai/api/v1/skills?q={query}
+   */
+  ipcMain.handle('search-community-skills', async (_event, query: string): Promise<{
+    items: Array<{
+      name: string;
+      slug: string;
+      description: string;
+      author: string;
+      stars: number;
+      downloads: number;
+      version: string;
+      url: string;
+      cloneUrl: string;
+      updatedAt: string;
+      tags: string[];
+    }>;
+    error?: string;
+  }> => {
+    log.info('IPC: search-community-skills (ClawdHub), query:', query);
+    return new Promise((resolve) => {
+      const params = query ? `?q=${encodeURIComponent(query)}` : '';
+      const apiUrl = `https://clawhub.ai/api/v1/skills${params}`;
+
+      const options = {
+        headers: {
+          'User-Agent': 'OpenClaw-Desktop',
+          'Accept': 'application/json'
+        }
+      };
+
+      https.get(apiUrl, options, (res) => {
+        let data = '';
+        res.on('data', (chunk: string) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            const skillsArray = json.items || json.skills || (Array.isArray(json) ? json : []);
+            const items = skillsArray.map((skill: any) => ({
+              name: skill.displayName || skill.name || skill.slug || '',
+              slug: skill.slug || '',
+              description: skill.summary || skill.description || '',
+              author: skill.owner?.handle || skill.owner?.displayName || skill.author || '',
+              stars: skill.stats?.stars || 0,
+              downloads: skill.stats?.downloads || 0,
+              version: skill.latestVersion?.version || '',
+              url: `https://clawhub.ai/skills/${skill.slug || ''}`,
+              cloneUrl: skill.repository || skill.cloneUrl || '',
+              updatedAt: skill.updatedAt || '',
+              tags: skill.tags?.latest || skill.tags || []
+            }));
+            log.info('search-community-skills (ClawdHub) found', items.length, 'results');
+            resolve({ items });
+          } catch (err: any) {
+            log.error('search-community-skills parse error:', err.message);
+            log.error('search-community-skills raw response:', data.substring(0, 500));
+            resolve({ items: [], error: 'Failed to parse ClawdHub response' });
+          }
+        });
+      }).on('error', (err) => {
+        log.error('search-community-skills network error:', err.message);
+        resolve({ items: [], error: 'Network error: ' + err.message });
+      });
+    });
+  });
+
+  /**
+   * install-skill-from-url: Clone a Git repo into the managed skills directory.
+   */
+  ipcMain.handle('install-skill-from-url', async (_event, url: string): Promise<{ success: boolean; message: string; name?: string }> => {
+    log.info('IPC: install-skill-from-url, url:', url);
+    try {
+      // Extract skill name from URL (last path segment, strip .git)
+      const urlPath = url.replace(/\.git$/, '').replace(/\/$/, '');
+      const name = urlPath.split('/').pop() || '';
+      if (!name || /[^a-zA-Z0-9_\-.]/.test(name)) {
+        return { success: false, message: 'Invalid skill name derived from URL: ' + name };
+      }
+
+      // Ensure skills directory exists
+      await wslManager.execInDistro('mkdir -p /root/.openclaw/skills', { timeout: 10000 });
+
+      // Check if already installed
+      const { stdout: checkOut } = await wslManager.execInDistro(
+        `test -d /root/.openclaw/skills/${name} && echo EXISTS || echo OK`,
+        { timeout: 5000 }
+      );
+      if (checkOut.trim() === 'EXISTS') {
+        return { success: false, message: 'Skill "' + name + '" is already installed' };
+      }
+
+      // Clone the repo
+      const { stdout, stderr } = await wslManager.execInDistro(
+        `git clone --depth 1 ${url} /root/.openclaw/skills/${name}`,
+        { timeout: 60000 }
+      );
+      log.info('install-skill-from-url stdout:', stdout.substring(0, 300));
+      if (stderr) log.info('install-skill-from-url stderr:', stderr.substring(0, 300));
+
+      return { success: true, message: 'Skill "' + name + '" installed successfully', name };
+    } catch (err: any) {
+      log.error('install-skill-from-url error:', err?.message);
+      return { success: false, message: err?.message || 'Installation failed' };
+    }
+  });
+
+  /**
+   * uninstall-community-skill: Remove a community-installed skill.
+   */
+  ipcMain.handle('uninstall-community-skill', async (_event, name: string): Promise<{ success: boolean; message: string }> => {
+    log.info('IPC: uninstall-community-skill, name:', name);
+    try {
+      // Safety: only allow alphanumeric, dash, dot, underscore
+      if (!name || /[^a-zA-Z0-9_\-.]/.test(name)) {
+        return { success: false, message: 'Invalid skill name' };
+      }
+
+      // Only delete from managed skills dir
+      const skillPath = `/root/.openclaw/skills/${name}`;
+      const { stdout: checkOut } = await wslManager.execInDistro(
+        `test -d ${skillPath} && echo EXISTS || echo NOTFOUND`,
+        { timeout: 5000 }
+      );
+      if (checkOut.trim() !== 'EXISTS') {
+        return { success: false, message: 'Skill "' + name + '" not found in community skills' };
+      }
+
+      await wslManager.execInDistro(`rm -rf ${skillPath}`, { timeout: 10000 });
+      log.info('uninstall-community-skill removed:', name);
+      return { success: true, message: 'Skill "' + name + '" uninstalled' };
+    } catch (err: any) {
+      log.error('uninstall-community-skill error:', err?.message);
+      return { success: false, message: err?.message || 'Uninstall failed' };
     }
   });
 

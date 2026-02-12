@@ -374,6 +374,7 @@
               <span data-i18n="wizard.skills.filter.ready">Show Ready Only</span>
             </label>
             <button class="btn btn-small" id="btn-select-all-skills" data-i18n="wizard.skills.selectall">Select All Ready</button>
+            <button class="btn btn-small" id="btn-open-skills-dir">Open Skills Directory</button>
           </div>
 
           <div class="skills-list" id="skills-list">
@@ -1160,6 +1161,103 @@
       var selectedSkills = [];
       var allSkills = [];
 
+      function t(key) {
+        return (window.i18n && window.i18n.t) ? window.i18n.t(key) : key;
+      }
+
+      function buildMissingDetails(skill) {
+        if (!skill.missing) return null;
+        var div = document.createElement('div');
+        div.className = 'skill-missing-details';
+        var fields = [
+          { key: 'bins', label: t('settings.skills.missing.bins') },
+          { key: 'anyBins', label: t('settings.skills.missing.anyBins') },
+          { key: 'env', label: t('settings.skills.missing.env') },
+          { key: 'config', label: t('settings.skills.missing.config') },
+          { key: 'os', label: t('settings.skills.missing.os') }
+        ];
+        var hasContent = false;
+        fields.forEach(function(f) {
+          var val = skill.missing[f.key];
+          if (val && ((Array.isArray(val) && val.length > 0) || (!Array.isArray(val) && val))) {
+            hasContent = true;
+            var span = document.createElement('span');
+            var displayVal = Array.isArray(val) ? val.join(', ') : val;
+            span.innerHTML = f.label + ': <code>' + displayVal + '</code>';
+            div.appendChild(span);
+          }
+        });
+        return hasContent ? div : null;
+      }
+
+      function buildSkillActions(skill) {
+        var div = document.createElement('div');
+        div.className = 'skill-actions';
+        var hasContent = false;
+
+        if (!skill.ready && skill.install && skill.install.length > 0) {
+          hasContent = true;
+          var installBtn = document.createElement('button');
+          installBtn.className = 'btn btn-small btn-primary';
+          installBtn.textContent = 'Install';
+          installBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSkillInstall(skill, installBtn);
+          });
+          div.appendChild(installBtn);
+        }
+
+        if (skill.homepage) {
+          hasContent = true;
+          var link = document.createElement('a');
+          link.className = 'skill-homepage-link';
+          link.textContent = 'Homepage';
+          link.href = '#';
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(skill.homepage, '_blank');
+          });
+          div.appendChild(link);
+        }
+
+        return hasContent ? div : null;
+      }
+
+      async function handleSkillInstall(skill, btn) {
+        var installMethod = skill.install[0];
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+        btn.textContent = 'Installing...';
+
+        try {
+          await api.installSkill(skill.name, installMethod);
+          btn.classList.remove('btn-loading');
+          btn.textContent = '\u2713';
+          btn.classList.add('btn-success');
+
+          var msg = document.createElement('span');
+          msg.className = 'install-success-msg';
+          msg.textContent = ' Installed successfully';
+          btn.parentNode.appendChild(msg);
+
+          setTimeout(function() {
+            allSkills = [];
+            loadSkillsList();
+          }, 2000);
+        } catch (err) {
+          btn.classList.remove('btn-loading');
+          btn.disabled = false;
+          btn.textContent = 'Install';
+
+          var errMsg = document.createElement('span');
+          errMsg.className = 'install-error-msg';
+          errMsg.textContent = ' Failed: ' + err.message;
+          btn.parentNode.appendChild(errMsg);
+        }
+      }
+
       async function loadSkillsList() {
         var skillsListEl = document.getElementById('skills-list');
         skillsListEl.innerHTML = '<div class="loading-text">Loading skills...</div>';
@@ -1231,6 +1329,13 @@
           label.appendChild(descSpan);
           label.appendChild(statusSpan);
 
+          if (!skill.ready) {
+            var missingDiv = buildMissingDetails(skill);
+            if (missingDiv) label.appendChild(missingDiv);
+          }
+          var actionsDiv = buildSkillActions(skill);
+          if (actionsDiv) label.appendChild(actionsDiv);
+
           skillCard.appendChild(checkbox);
           skillCard.appendChild(label);
           skillsListEl.appendChild(skillCard);
@@ -1249,6 +1354,20 @@
           }
         });
         renderSkillsList(allSkills);
+      });
+
+      document.getElementById('btn-open-skills-dir').addEventListener('click', async function() {
+        var btn = this;
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+        try {
+          await api.openSkillsDir();
+        } catch (err) {
+          console.error('Failed to open skills dir:', err);
+        } finally {
+          btn.classList.remove('btn-loading');
+          btn.disabled = false;
+        }
       });
 
       document.getElementById('btn-back-7').addEventListener('click', function() {
