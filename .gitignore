@@ -10,3 +10,4 @@ nul
 *.tar
 *.tar.gz
 installer/
+wsl_kernel/*.msi

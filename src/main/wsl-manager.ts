@@ -12,13 +12,13 @@
 
 import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
-import { EventEmitter } from 'events';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as net from 'net';
 import * as http from 'http';
 import * as os from 'os';
 import log from 'electron-log';
+import { BackendManager, BackendStatus, EnvCheckResult, GatewayInfo as BackendGatewayInfo, ModelConfig, ChannelConfig, SkillInfo as BackendSkillInfo } from './backend-manager';
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -34,10 +34,12 @@ export type WSLStatus =
 export interface WSLCheckResult {
   wslEnabled: boolean;
   vmPlatformEnabled: boolean;
+  virtualizationEnabled: boolean;
   distroExists: boolean;
   distroRunning: boolean;
   gatewayHealthy: boolean;
   wslVersion: string;
+  nativeMode?: boolean;
   errorMessage?: string;
 }
 
@@ -70,7 +72,7 @@ export interface SkillInfo {
   homepage: string;
 }
 
-export class WSLManager extends EventEmitter {
+export class WSLManager extends BackendManager {
   private readonly DISTRO_NAME = 'OpenClaw';
   private readonly GATEWAY_PORT = 18789;
   private readonly GATEWAY_TOKEN = 'openclaw-desktop-local';
@@ -120,6 +122,7 @@ export class WSLManager extends EventEmitter {
     const result: WSLCheckResult = {
       wslEnabled: false,
       vmPlatformEnabled: false,
+      virtualizationEnabled: false,
       distroExists: false,
       distroRunning: false,
       gatewayHealthy: false,
@@ -127,6 +130,9 @@ export class WSLManager extends EventEmitter {
     };
 
     try {
+      // Check hardware virtualization (BIOS-level)
+      result.virtualizationEnabled = await this.checkVirtualization();
+
       // Check WSL features
       const features = await this.checkWindowsFeatures();
       result.wslEnabled = features.wsl;
@@ -174,6 +180,23 @@ export class WSLManager extends EventEmitter {
   }
 
   /**
+   * Check if hardware virtualization (VT-x/AMD-V) is enabled in BIOS
+   */
+  private async checkVirtualization(): Promise<boolean> {
+    try {
+      const { stdout } = await execFileAsync('powershell.exe', [
+        '-NoProfile',
+        '-Command',
+        `(Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled`,
+      ]);
+      return stdout.trim().toLowerCase() === 'true';
+    } catch (err) {
+      log.error('Failed to check virtualization:', err);
+      return false;
+    }
+  }
+
+  /**
    * Check if required Windows features are enabled
    */
   private async checkWindowsFeatures(): Promise<{
@@ -196,6 +219,23 @@ export class WSLManager extends EventEmitter {
     } catch (err) {
       log.error('Failed to check Windows features:', err);
       return { wsl: false, vmPlatform: false };
+    }
+  }
+
+  /**
+   * Verify WSL is actually functional (not just features enabled).
+   * Features can show as "Enabled" but WSL may not work until restart.
+   */
+  private async verifyWSLFunctional(): Promise<boolean> {
+    try {
+      const { stdout } = await this.runWslCommand(['--status'], { timeout: 10000 });
+      log.info('WSL status:', stdout.trim());
+      // If --status succeeds without error, WSL is functional
+      return true;
+    } catch (err: any) {
+      const detail = (err.stderr || err.stdout || err.message || '').trim();
+      log.warn('WSL not functional:', detail);
+      return false;
     }
   }
 
@@ -264,54 +304,109 @@ export class WSLManager extends EventEmitter {
 
   /**
    * Install WSL2 fully offline.
-   * Uses PowerShell to enable Windows features + bundled kernel MSI.
-   * Does NOT call `wsl --install` (which triggers Microsoft Store download).
+   * Uses bundled WSL MSI + `wsl --install --no-distribution` for complete setup.
    * Returns whether a restart is needed.
    */
   async installWSLComplete(): Promise<{ success: boolean; needsRestart: boolean }> {
-    log.info('Installing WSL2 (offline mode)...');
+    log.info('Installing WSL2...');
 
-    // Check if features are already enabled
+    // Step 1: Check if features are already Enabled (post-restart scenario)
     const features = await this.checkWindowsFeatures();
+
     if (features.wsl && features.vmPlatform) {
-      log.info('WSL2 features already enabled');
-      // Install kernel MSI just in case
-      await this.installWSLKernel();
+      // Post-restart: features are active
+      log.info('WSL2 features already enabled (post-restart)');
+
+      // Install MSI for runtime update
+      const msiInstalled = await this.installWSLKernel();
+      log.info('MSI install result:', msiInstalled);
+
+      const wslWorks = await this.verifyWSLFunctional();
+      if (wslWorks) {
+        await this.setDefaultVersion();
+        return { success: true, needsRestart: false };
+      }
+
+      // Features enabled but WSL not functional — fundamental issue
+      // (virtualization disabled in BIOS, Hyper-V broken, etc.)
+      log.error('WSL features enabled but not functional — cannot proceed with WSL mode');
+      return { success: false, needsRestart: false };
+    }
+
+    // Step 1b: Features may not be detected (Get-WindowsOptionalFeature needs admin,
+    // or WSL was installed via Store/inbox on newer Windows 11 builds).
+    // Check if WSL is already functional before attempting re-install.
+    const wslAlreadyWorks = await this.verifyWSLFunctional();
+    if (wslAlreadyWorks) {
+      log.info('WSL2 is functional (features not detected via Get-WindowsOptionalFeature but WSL works)');
+      const msiInstalled = await this.installWSLKernel();
+      log.info('MSI install result:', msiInstalled);
       await this.setDefaultVersion();
       return { success: true, needsRestart: false };
     }
 
-    // Enable WSL + VirtualMachinePlatform via PowerShell (offline, built into Windows)
+    // Step 2: First run — features not enabled yet
+    // wsl --install --no-distribution enables everything in one shot
+    log.info('Running wsl --install --no-distribution...');
+    let wslInstallRan = false;
+    try {
+      await execAsync('wsl.exe --install --no-distribution', {
+        timeout: 120000,
+        windowsHide: true,
+        encoding: 'utf16le' as BufferEncoding,
+      });
+      wslInstallRan = true;
+      log.info('wsl --install completed');
+    } catch (err: any) {
+      const output = (err.stdout || err.stderr || err.message || '').trim();
+      log.warn('wsl --install output:', output);
+      // Non-zero exit is common even on success (restart required)
+      if (output && !output.toLowerCase().includes('not recognized')) {
+        wslInstallRan = true;
+      }
+    }
+
+    // Step 3: Install bundled MSI
+    const msiInstalled = await this.installWSLKernel();
+    log.info('MSI install result:', msiInstalled);
+
+    // Step 4: If wsl --install ran, trust it — restart will activate everything
+    if (wslInstallRan) {
+      return { success: true, needsRestart: true };
+    }
+
+    // Step 5: wsl --install not available — PowerShell fallback
+    log.info('wsl --install not available, falling back to PowerShell...');
     const featureResult = await this.enableWSLFeatures();
     if (!featureResult.success) {
       return { success: false, needsRestart: false };
     }
-
-    if (featureResult.needsRestart) {
-      return { success: true, needsRestart: true };
-    }
-
-    // Features enabled without restart — install kernel from bundled MSI
-    const kernelInstalled = await this.installWSLKernel();
-    if (!kernelInstalled) {
-      log.warn('WSL kernel install failed/skipped — may already be present');
-    }
-
-    await this.setDefaultVersion();
-    return { success: true, needsRestart: false };
+    return { success: true, needsRestart: true };
   }
 
   /**
-   * Install WSL2 kernel from bundled MSI (offline)
+   * Install WSL2 from bundled MSI (offline).
+   * Dynamically finds the .msi file in wsl_kernel/ directory.
    */
   async installWSLKernel(): Promise<boolean> {
-    log.info('Installing WSL2 kernel update...');
+    log.info('Installing WSL2 update...');
 
-    const msiPath = path.join(this.resourcesDir, 'wsl_kernel', 'wsl_update_x64.msi');
-    if (!fs.existsSync(msiPath)) {
-      log.error('WSL kernel MSI not found at:', msiPath);
+    const kernelDir = path.join(this.resourcesDir, 'wsl_kernel');
+    if (!fs.existsSync(kernelDir)) {
+      log.error('WSL kernel directory not found:', kernelDir);
       return false;
     }
+
+    const msiFiles = fs.readdirSync(kernelDir).filter(f => f.endsWith('.msi'));
+    if (msiFiles.length === 0) {
+      log.error('No WSL MSI found in:', kernelDir);
+      return false;
+    }
+
+    // Prefer the latest WSL MSI (wsl.2.x.x.msi) over the old kernel update
+    const msiFile = msiFiles.find(f => f.startsWith('wsl.')) || msiFiles[0];
+    const msiPath = path.join(kernelDir, msiFile);
+    log.info('Installing WSL MSI:', msiPath);
 
     try {
       await execFileAsync('msiexec.exe', [
@@ -366,10 +461,15 @@ export class WSLManager extends EventEmitter {
       return false;
     }
 
-    // Create WSL install directory
-    if (!fs.existsSync(wslDir)) {
-      fs.mkdirSync(wslDir, { recursive: true });
+    // Create WSL install directory (clean up stale files from previous failed import)
+    if (fs.existsSync(wslDir)) {
+      const files = fs.readdirSync(wslDir);
+      if (files.length > 0) {
+        log.warn('WSL directory has stale files from previous import, cleaning up...');
+        fs.rmSync(wslDir, { recursive: true, force: true });
+      }
     }
+    fs.mkdirSync(wslDir, { recursive: true });
 
     // Check if distro already exists
     const distros = await this.listDistros();
@@ -386,7 +486,7 @@ export class WSLManager extends EventEmitter {
       // (wsl.exe --import has known issues with spaces when using execFile array args)
       const cmd = `wsl.exe --import "${this.DISTRO_NAME}" "${wslDir}" "${tarPath}"`;
       log.info('Import command:', cmd);
-      await execAsync(cmd, { timeout: 600000, windowsHide: true });
+      await execAsync(cmd, { timeout: 600000, windowsHide: true, encoding: 'utf16le' as BufferEncoding });
       log.info('Distro imported successfully');
       this.emit('import-progress', 'Import complete');
 
@@ -395,8 +495,11 @@ export class WSLManager extends EventEmitter {
 
       return true;
     } catch (err: any) {
-      log.error('Failed to import distro:', err);
-      this.emit('import-error', err.message);
+      const detail = (err.stderr || err.stdout || err.message || '').trim();
+      log.error('Failed to import distro:', detail);
+      log.error('Import error stderr:', err.stderr);
+      log.error('Import error stdout:', err.stdout);
+      this.emit('import-error', detail);
       return false;
     }
   }
@@ -1066,6 +1169,20 @@ export class WSLManager extends EventEmitter {
     });
 
     return { stdout, stderr };
+  }
+
+  /**
+   * Execute a command in the backend (delegates to execInDistro for WSL mode).
+   */
+  async execCommand(command: string, options?: { timeout?: number }): Promise<{ stdout: string; stderr: string }> {
+    return this.execInDistro(command, options);
+  }
+
+  /**
+   * Native install is not supported in WSL mode.
+   */
+  async installNative(): Promise<boolean> {
+    return false;
   }
 
   /**

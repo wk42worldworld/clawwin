@@ -100,6 +100,10 @@
         <div class="step-body">
           <h2 data-i18n="wizard.wsl2check.title">Checking WSL2 Status</h2>
           <div class="check-list" id="wsl-check-list">
+            <div class="check-item" id="check-virtualization">
+              <span class="check-icon check-pending">&#8987;</span>
+              <span class="check-text" data-i18n="wizard.check.virtualization">Hardware Virtualization (VT-x/AMD-V)</span>
+            </div>
             <div class="check-item" id="check-wsl-feature">
               <span class="check-icon check-pending">&#8987;</span>
               <span class="check-text" data-i18n="wizard.check.wsl.feature">Windows Subsystem for Linux feature</span>
@@ -146,6 +150,21 @@
           </div>
           <div class="install-log-container">
             <pre class="log-output" id="install-log"></pre>
+          </div>
+
+          <!-- Native install fallback -->
+          <div id="native-install-box" class="info-box info-box-warning hidden" style="margin-top: 16px;">
+            <h3 data-i18n="wizard.native.title">Install without WSL?</h3>
+            <p data-i18n="wizard.native.desc">WSL installation failed. You can install OpenClaw directly on Windows instead. This mode doesn't require WSL or virtualization.</p>
+            <button class="btn btn-primary" id="btn-install-native" data-i18n="wizard.native.install">Install on Windows</button>
+            <div class="status-message" id="native-install-status"></div>
+          </div>
+
+          <!-- Restart required in Step 3 -->
+          <div id="restart-required-box-3" class="info-box info-box-warning hidden" style="margin-top: 16px;">
+            <h3 data-i18n="wizard.restart.title">Restart Required</h3>
+            <p data-i18n="wizard.restart.desc">WSL2 has been enabled but your computer needs to restart to complete the setup. After restarting, ClawWin will automatically continue the setup.</p>
+            <button class="btn btn-primary" id="btn-restart-now-3" data-i18n="wizard.restart.btn">Restart Now</button>
           </div>
         </div>
         <div class="step-actions">
@@ -429,11 +448,21 @@
       var totalSteps = 8;
 
       // Initialize i18n then set up the wizard
-      I18n.init().then(function () {
+      I18n.init().then(async function () {
         // Initialize install log
         var installLog = document.getElementById("install-log");
         installLog.textContent = I18n.t("wizard.install.starting");
-        showStep(1);
+
+        // Check if resuming after restart
+        var resumeFlag = await api.getSetting("wizardResumeAfterRestart");
+        if (resumeFlag === "step3-verify") {
+          // Clear the flag immediately
+          await api.setSetting("wizardResumeAfterRestart", "");
+          showStep(3);
+          runPostRestartVerification();
+        } else {
+          showStep(1);
+        }
       });
 
       function showStep(step) {
@@ -491,6 +520,13 @@
         try {
           var result = await api.checkEnv();
 
+          if (result.virtualizationEnabled) {
+            setCheckStatus("check-virtualization", "pass");
+          } else {
+            setCheckStatus("check-virtualization", "fail");
+            wslReady = false;
+          }
+
           if (result.wslEnabled) {
             setCheckStatus("check-wsl-feature", "pass");
           } else {
@@ -519,6 +555,7 @@
             setCheckStatus("check-distro", "pending");
           }
         } catch (err) {
+          setCheckStatus("check-virtualization", "fail");
           setCheckStatus("check-wsl-feature", "fail");
           setCheckStatus("check-vm-platform", "fail");
           setCheckStatus("check-wsl-version", "fail");
@@ -535,7 +572,11 @@
             runInstallation();
           }, 500);
         } else {
-          statusMsg.textContent = I18n.t("wizard.check.failed");
+          if (result && !result.virtualizationEnabled) {
+            statusMsg.textContent = I18n.t("wizard.check.virtualization.disabled");
+          } else {
+            statusMsg.textContent = I18n.t("wizard.check.failed");
+          }
           btnNext.disabled = true;
           btnInstall.classList.remove("hidden");
         }
@@ -551,42 +592,111 @@
           setInstallProgress(10, I18n.t("wizard.install.wsl.env"));
           appendInstallLog(I18n.t("wizard.install.wsl.starting"));
 
-          setInstallProgress(20, I18n.t("wizard.install.installing"));
-          appendInstallLog(I18n.t("wizard.install.installing"));
-          var imported = await api.importDistro();
-          if (!imported) {
-            appendInstallLog(I18n.t("wizard.install.distro.exists"));
+          var wslReady = await api.installWSLComplete();
+          if (!wslReady.success) {
+            throw new Error("WSL2 environment setup failed");
+          }
+          if (wslReady.needsRestart) {
+            setInstallProgress(0, I18n.t("wizard.restart.status"));
+            appendInstallLog(I18n.t("wizard.restart.status"));
+            // Save resume flag so wizard jumps here after restart
+            await api.setSetting("wizardResumeAfterRestart", "step3-verify");
+            // Show restart UI in Step 3
+            var restartBox3 = document.getElementById("restart-required-box-3");
+            if (restartBox3) restartBox3.classList.remove("hidden");
+            btnBack.disabled = false;
+            return;
           }
 
-          setInstallProgress(50, I18n.t("wizard.install.configuring.gateway"));
-          appendInstallLog(I18n.t("wizard.install.configuring.gateway"));
-
-          setInstallProgress(70, I18n.t("wizard.install.starting.service"));
-          appendInstallLog(I18n.t("wizard.install.starting.service.log"));
-          await api.startGateway();
-
-          // Verify the gateway is reachable from Windows (through port forwarding)
-          setInstallProgress(90, I18n.t("wizard.install.verifying") || "Verifying connectivity...");
-          appendInstallLog("Verifying gateway connectivity from Windows...");
-          var reachable = false;
-          if (api.checkGatewayConnectivity) {
-            reachable = await api.checkGatewayConnectivity();
-          }
-          if (reachable) {
-            appendInstallLog("Gateway is reachable from Windows.");
-          } else {
-            appendInstallLog("Warning: Gateway may not be reachable yet. Chat will retry automatically.");
-          }
-
-          setInstallProgress(100, I18n.t("wizard.install.complete"));
-          appendInstallLog(I18n.t("wizard.install.completed"));
-
-          btnNext.disabled = false;
+          // WSL ready — proceed to import distro
+          await runDistroImportAndStart();
         } catch (err) {
           setInstallProgress(0, I18n.t("wizard.install.failed"));
           appendInstallLog(I18n.t("wizard.install.failed") + " " + err.message);
           btnBack.disabled = false;
+          // Show native install fallback
+          var nativeBox = document.getElementById("native-install-box");
+          if (nativeBox) nativeBox.classList.remove("hidden");
         }
+      }
+
+      // Post-restart: skip wsl --install, verify WSL works, then import distro
+      async function runPostRestartVerification() {
+        var btnBack = document.getElementById("btn-back-3");
+        var btnNext = document.getElementById("btn-next-3");
+        btnBack.disabled = true;
+        btnNext.disabled = true;
+
+        try {
+          setInstallProgress(10, I18n.t("wizard.install.wsl.env"));
+          appendInstallLog("Verifying WSL after restart...");
+
+          // Call installWSLComplete — it will detect features are Enabled
+          // and verify WSL is functional (no wsl --install, no restart)
+          var wslReady = await api.installWSLComplete();
+
+          if (!wslReady.success) {
+            // Features enabled but WSL broken — fundamental issue
+            throw new Error("WSL not functional after restart");
+          }
+          if (wslReady.needsRestart) {
+            // Shouldn't happen post-restart, but handle gracefully
+            setInstallProgress(0, I18n.t("wizard.restart.status"));
+            appendInstallLog("Additional restart required...");
+            await api.setSetting("wizardResumeAfterRestart", "step3-verify");
+            var restartBox3 = document.getElementById("restart-required-box-3");
+            if (restartBox3) restartBox3.classList.remove("hidden");
+            btnBack.disabled = false;
+            return;
+          }
+
+          // WSL is functional — proceed to import distro
+          await runDistroImportAndStart();
+        } catch (err) {
+          setInstallProgress(0, I18n.t("wizard.install.failed"));
+          appendInstallLog(I18n.t("wizard.install.failed") + " " + err.message);
+          btnBack.disabled = false;
+          // Show native install fallback
+          var nativeBox = document.getElementById("native-install-box");
+          if (nativeBox) nativeBox.classList.remove("hidden");
+        }
+      }
+
+      // Shared: import distro, start gateway, verify connectivity
+      async function runDistroImportAndStart() {
+        var btnNext = document.getElementById("btn-next-3");
+
+        setInstallProgress(20, I18n.t("wizard.install.installing"));
+        appendInstallLog(I18n.t("wizard.install.installing"));
+        var imported = await api.importDistro();
+        if (!imported) {
+          throw new Error(I18n.t("wizard.install.import.failed") || "Failed to import Linux image");
+        }
+
+        setInstallProgress(50, I18n.t("wizard.install.configuring.gateway"));
+        appendInstallLog(I18n.t("wizard.install.configuring.gateway"));
+
+        setInstallProgress(70, I18n.t("wizard.install.starting.service"));
+        appendInstallLog(I18n.t("wizard.install.starting.service.log"));
+        await api.startGateway();
+
+        // Verify the gateway is reachable from Windows (through port forwarding)
+        setInstallProgress(90, I18n.t("wizard.install.verifying") || "Verifying connectivity...");
+        appendInstallLog("Verifying gateway connectivity from Windows...");
+        var reachable = false;
+        if (api.checkGatewayConnectivity) {
+          reachable = await api.checkGatewayConnectivity();
+        }
+        if (reachable) {
+          appendInstallLog("Gateway is reachable from Windows.");
+        } else {
+          appendInstallLog("Warning: Gateway may not be reachable yet. Chat will retry automatically.");
+        }
+
+        setInstallProgress(100, I18n.t("wizard.install.complete"));
+        appendInstallLog(I18n.t("wizard.install.completed"));
+
+        btnNext.disabled = false;
       }
 
       // Step 1: Welcome - Next
@@ -618,6 +728,8 @@
         try {
           var result = await api.installWSLComplete();
           if (result.success && result.needsRestart) {
+            // Save resume flag before restart
+            await api.setSetting("wizardResumeAfterRestart", "step3-verify");
             // Show restart required UI
             statusMsg.textContent = I18n.t("wizard.restart.status");
             restartBox.classList.remove("hidden");
@@ -654,6 +766,21 @@
         }
       });
 
+      // Step 3: Restart Now button (when WSL install needs restart)
+      document.getElementById("btn-restart-now-3").addEventListener("click", async function () {
+        var btn = this;
+        btn.classList.add("btn-loading");
+        btn.disabled = true;
+        btn.textContent = I18n.t("wizard.restart.restarting");
+        try {
+          await api.restartComputer();
+        } catch (err) {
+          btn.textContent = I18n.t("wizard.restart.failed");
+          btn.classList.remove("btn-loading");
+          btn.disabled = false;
+        }
+      });
+
       // Step 3: Install - Back
       document.getElementById("btn-back-3").addEventListener("click", function () {
         showStep(2);
@@ -663,6 +790,39 @@
       document.getElementById("btn-next-3").addEventListener("click", function () {
         showStep(4);
         initAiConfig();
+      });
+
+      // Step 3: Install Native fallback
+      document.getElementById("btn-install-native").addEventListener("click", async function () {
+        var btn = this;
+        var statusEl = document.getElementById("native-install-status");
+        btn.classList.add("btn-loading");
+        btn.disabled = true;
+        statusEl.textContent = I18n.t("wizard.native.installing");
+
+        try {
+          await api.setSetting("platform", "native");
+          var result = await api.installNative();
+          if (result) {
+            statusEl.textContent = I18n.t("wizard.native.success");
+            statusEl.className = "status-message status-success";
+            // Start native gateway and continue
+            appendInstallLog("Starting native gateway...");
+            await api.startGateway();
+            setInstallProgress(100, I18n.t("wizard.install.complete"));
+            appendInstallLog(I18n.t("wizard.install.completed"));
+            document.getElementById("btn-next-3").disabled = false;
+            document.getElementById("native-install-box").classList.add("hidden");
+          } else {
+            throw new Error("Native installation failed");
+          }
+        } catch (err) {
+          statusEl.textContent = I18n.t("wizard.native.failed") + " " + err.message;
+          statusEl.className = "status-message status-error";
+        } finally {
+          btn.classList.remove("btn-loading");
+          btn.disabled = false;
+        }
       });
 
       // Step 4: AI Config - init

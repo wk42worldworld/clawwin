@@ -15,6 +15,7 @@ const openclawAPI = {
   checkEnv: (): Promise<{
     wslEnabled: boolean;
     vmPlatformEnabled: boolean;
+    virtualizationEnabled: boolean;
     distroExists: boolean;
     distroRunning: boolean;
     gatewayHealthy: boolean;
@@ -90,6 +91,9 @@ const openclawAPI = {
 
   importDistro: (): Promise<boolean> =>
     ipcRenderer.invoke('import-distro'),
+
+  installNative: (): Promise<boolean> =>
+    ipcRenderer.invoke('install-native'),
 
   // ─── Settings ─────────────────────────────────────────────
 

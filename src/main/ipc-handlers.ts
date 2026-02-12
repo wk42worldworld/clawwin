@@ -12,11 +12,11 @@ import { execFile } from 'child_process';
 import * as https from 'https';
 import log from 'electron-log';
 import Store from 'electron-store';
-import { WSLManager, WSLCheckResult, WSLStatus, GatewayInfo, SkillInfo } from './wsl-manager';
+import { BackendManager, BackendStatus, EnvCheckResult, GatewayInfo, SkillInfo } from './backend-manager';
 import { StoreSchema } from './store-schema';
 
 export function registerIPCHandlers(
-  wslManager: WSLManager,
+  wslManager: BackendManager,
   store: Store<StoreSchema>,
   getMainWindow: () => BrowserWindow | null
 ): void {
@@ -27,7 +27,7 @@ export function registerIPCHandlers(
    * check-env: Performs a full WSL2 environment check.
    * Returns a WSLCheckResult with booleans for each component.
    */
-  ipcMain.handle('check-env', async (): Promise<WSLCheckResult> => {
+  ipcMain.handle('check-env', async (): Promise<EnvCheckResult> => {
     log.info('IPC: check-env');
     try {
       return await wslManager.checkEnvironment();
@@ -36,10 +36,12 @@ export function registerIPCHandlers(
       return {
         wslEnabled: false,
         vmPlatformEnabled: false,
+        virtualizationEnabled: false,
         distroExists: false,
         distroRunning: false,
         gatewayHealthy: false,
         wslVersion: '',
+        nativeMode: false,
         errorMessage: err.message,
       };
     }
@@ -49,7 +51,7 @@ export function registerIPCHandlers(
    * get-status: Returns the current WSL gateway status and optional info.
    */
   ipcMain.handle('get-status', async (): Promise<{
-    status: WSLStatus;
+    status: BackendStatus;
     info: GatewayInfo | null;
   }> => {
     const status = wslManager.status;
@@ -131,11 +133,11 @@ export function registerIPCHandlers(
         store.set('platform', config.platform);
       }
 
-      // Write configuration inside the WSL2 distro
-      const success = await wslManager.configureOpenClaw({
+      // Write configuration inside the backend
+      const success = await wslManager.configureModelProvider({
         provider: config.provider,
         apiKey: config.apiKey,
-        model: config.model,
+        model: config.model || '',
       });
 
       log.info(`IPC: configure result: ${success}`);
@@ -279,6 +281,29 @@ export function registerIPCHandlers(
       log.error('IPC: import-distro error:', err);
       return false;
     }
+  });
+
+  /**
+   * install-native: Installs the native backend (no WSL required).
+   */
+  ipcMain.handle('install-native', async (): Promise<boolean> => {
+    log.info('IPC: install-native');
+    try {
+      return await wslManager.installNative();
+    } catch (err: any) {
+      log.error('IPC: install-native error:', err);
+      return false;
+    }
+  });
+
+  /**
+   * switch-to-native: Marks platform as 'native' for next app launch.
+   */
+  ipcMain.handle('switch-to-native', async (): Promise<boolean> => {
+    log.info('IPC: switch-to-native');
+    // This is handled by setting platform='native' and restarting
+    // The actual switch happens on next app launch
+    return true;
   });
 
   // ─── Settings ─────────────────────────────────────────────
@@ -454,7 +479,7 @@ export function registerIPCHandlers(
       }
 
       log.info('install-skill running command:', command);
-      const { stdout, stderr } = await wslManager.execInDistro(command, { timeout: 120000 });
+      const { stdout, stderr } = await wslManager.execCommand(command, { timeout: 120000 });
       log.info('install-skill stdout:', stdout.substring(0, 500));
       if (stderr) log.warn('install-skill stderr:', stderr.substring(0, 500));
       return { success: true, message: 'Installation completed successfully' };
@@ -470,7 +495,7 @@ export function registerIPCHandlers(
   ipcMain.handle('open-skills-dir', async (): Promise<{ success: boolean; message: string }> => {
     log.info('IPC: open-skills-dir called');
     try {
-      await wslManager.execInDistro('mkdir -p /root/.openclaw/skills', { timeout: 10000 });
+      await wslManager.execCommand('mkdir -p /root/.openclaw/skills', { timeout: 10000 });
       const windowsPath = '\\\\wsl$\\OpenClaw\\root\\.openclaw\\skills';
       execFile('explorer.exe', [windowsPath], { windowsHide: false }, (err) => {
         if (err) log.warn('open-skills-dir explorer error:', err.message);
@@ -565,10 +590,10 @@ export function registerIPCHandlers(
       }
 
       // Ensure skills directory exists
-      await wslManager.execInDistro('mkdir -p /root/.openclaw/skills', { timeout: 10000 });
+      await wslManager.execCommand('mkdir -p /root/.openclaw/skills', { timeout: 10000 });
 
       // Check if already installed
-      const { stdout: checkOut } = await wslManager.execInDistro(
+      const { stdout: checkOut } = await wslManager.execCommand(
         `test -d /root/.openclaw/skills/${name} && echo EXISTS || echo OK`,
         { timeout: 5000 }
       );
@@ -577,7 +602,7 @@ export function registerIPCHandlers(
       }
 
       // Clone the repo
-      const { stdout, stderr } = await wslManager.execInDistro(
+      const { stdout, stderr } = await wslManager.execCommand(
         `git clone --depth 1 ${url} /root/.openclaw/skills/${name}`,
         { timeout: 60000 }
       );
@@ -604,7 +629,7 @@ export function registerIPCHandlers(
 
       // Only delete from managed skills dir
       const skillPath = `/root/.openclaw/skills/${name}`;
-      const { stdout: checkOut } = await wslManager.execInDistro(
+      const { stdout: checkOut } = await wslManager.execCommand(
         `test -d ${skillPath} && echo EXISTS || echo NOTFOUND`,
         { timeout: 5000 }
       );
@@ -612,7 +637,7 @@ export function registerIPCHandlers(
         return { success: false, message: 'Skill "' + name + '" not found in community skills' };
       }
 
-      await wslManager.execInDistro(`rm -rf ${skillPath}`, { timeout: 10000 });
+      await wslManager.execCommand(`rm -rf ${skillPath}`, { timeout: 10000 });
       log.info('uninstall-community-skill removed:', name);
       return { success: true, message: 'Skill "' + name + '" uninstalled' };
     } catch (err: any) {

@@ -11,6 +11,8 @@ import * as path from 'path';
 import log from 'electron-log';
 import Store from 'electron-store';
 import { WSLManager } from './wsl-manager';
+import { NativeManager } from './native-manager';
+import { BackendManager } from './backend-manager';
 import { createTray, updateTrayStatus, destroyTray } from './tray';
 import { registerIPCHandlers } from './ipc-handlers';
 import { StoreSchema, setQuitting, getQuitting } from './store-schema';
@@ -31,12 +33,13 @@ const store = new Store<StoreSchema>({
     apiKey: '',
     platform: '',
     language: '',
+    wizardResumeAfterRestart: '',
   },
 });
 
 // ─── Global References ──────────────────────────────────────────
 let mainWindow: BrowserWindow | null = null;
-let wslManager: WSLManager;
+let manager: BackendManager;
 
 // ─── Path Helpers ───────────────────────────────────────────────
 
@@ -163,14 +166,21 @@ async function initializeApp(): Promise<void> {
     }
   });
 
-  // Initialize WSL Manager with correct resource path
+  // Initialize backend manager based on platform setting
   const resourcesDir = app.isPackaged
     ? process.resourcesPath                         // production: <install>/resources/
     : path.join(__dirname, '..', '..');             // dev: project root
-  wslManager = new WSLManager(resourcesDir);
+  const dataDir = path.join(
+    process.env.LOCALAPPDATA || 'C:\\Users\\Default\\AppData\\Local',
+    'OpenClaw Desktop'
+  );
+  const platform = store.get('platform', '');
+  manager = platform === 'native'
+    ? new NativeManager(resourcesDir, dataDir)
+    : new WSLManager(resourcesDir, dataDir);
 
   // Forward WSL status change events to the renderer and tray
-  wslManager.on('status-changed', (newStatus: string) => {
+  manager.on('status-changed', (newStatus: string) => {
     log.info(`WSL status changed: ${newStatus}`);
     updateTrayStatus(newStatus);
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -178,33 +188,33 @@ async function initializeApp(): Promise<void> {
     }
   });
 
-  wslManager.on('gateway-crashed', (code: number) => {
+  manager.on('gateway-crashed', (code: number) => {
     log.error(`Gateway process crashed with exit code ${code}`);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('gateway-crashed', code);
     }
   });
 
-  wslManager.on('gateway-unhealthy', () => {
+  manager.on('gateway-unhealthy', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('gateway-unhealthy');
     }
   });
 
-  wslManager.on('import-progress', (message: string) => {
+  manager.on('import-progress', (message: string) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('import-progress', message);
     }
   });
 
-  wslManager.on('import-error', (message: string) => {
+  manager.on('import-error', (message: string) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('import-error', message);
     }
   });
 
   // Register IPC handlers so the renderer can communicate with the main process
-  registerIPCHandlers(wslManager, store, () => mainWindow);
+  registerIPCHandlers(manager, store, () => mainWindow);
 
   // Remove default menu bar (File, Edit, View, etc.)
   Menu.setApplicationMenu(null);
@@ -214,7 +224,7 @@ async function initializeApp(): Promise<void> {
   const isFirstLaunch = store.get('firstLaunch') as boolean;
   if (!isFirstLaunch) {
     try {
-      const envCheck = await wslManager.checkEnvironment();
+      const envCheck = await manager.checkEnvironment();
       if (!envCheck.distroExists) {
         log.info('Distro not found — resetting to wizard mode');
         store.set('firstLaunch', true);
@@ -229,7 +239,7 @@ async function initializeApp(): Promise<void> {
   mainWindow = createMainWindow();
 
   // Create the system tray icon and menu
-  createTray(mainWindow, wslManager, store);
+  createTray(mainWindow, manager, store);
 
   // Auto-start the gateway if configured and not on first launch
   const autoStart = store.get('autoStartGateway') as boolean;
@@ -237,7 +247,7 @@ async function initializeApp(): Promise<void> {
   if (autoStart && !currentFirstLaunch) {
     log.info('Auto-starting gateway...');
     try {
-      await wslManager.startGateway();
+      await manager.startGateway();
     } catch (err) {
       log.error('Auto-start gateway failed:', err);
     }
@@ -272,8 +282,8 @@ app.on('before-quit', async () => {
   log.info('Application quitting, shutting down WSL manager...');
   destroyTray();
   try {
-    if (wslManager) {
-      await wslManager.shutdown();
+    if (manager) {
+      await manager.shutdown();
     }
   } catch (err) {
     log.error('Error during WSL shutdown:', err);

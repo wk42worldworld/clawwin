@@ -10,12 +10,12 @@ import { Tray, Menu, nativeImage, BrowserWindow, app } from 'electron';
 import * as path from 'path';
 import log from 'electron-log';
 import Store from 'electron-store';
-import { WSLManager, WSLStatus } from './wsl-manager';
+import { BackendManager } from './backend-manager';
 import { setQuitting, StoreSchema } from './store-schema';
 
 let tray: Tray | null = null;
 let currentStatus: string = 'stopped';
-let wslManagerRef: WSLManager;
+let wslManagerRef: BackendManager;
 let mainWindowRef: BrowserWindow;
 let storeRef: Store<StoreSchema>;
 
@@ -175,7 +175,7 @@ function buildContextMenu(): Menu {
  */
 export function createTray(
   mainWindow: BrowserWindow,
-  wslManager: WSLManager,
+  wslManager: BackendManager,
   store: Store<StoreSchema>
 ): Tray {
   mainWindowRef = mainWindow;
