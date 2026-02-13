@@ -74,8 +74,17 @@ npm start
 
 ## Requirements / 系统要求
 
-- Windows 10 / 11
+- **Windows 11 recommended** / **推荐 Windows 11**
+- Windows 10 (version 2004+) also supported / Windows 10（2004 以上版本）也支持
 - Administrator privileges / 管理员权限
+
+> **⚠️ Not recommended: Cloud desktops / virtual machines**
+>
+> Services like AWS WorkSpaces, Azure Virtual Desktop, cloud VPS with Windows, etc. usually **do not support hardware virtualization (Hyper-V / WSL2)**, which ClawWin depends on. If you must use a cloud environment, please deploy [OpenClaw](https://github.com/openclaw/openclaw) directly on a Linux server instead.
+>
+> **⚠️ 不推荐：云电脑 / 虚拟机**
+>
+> 各类云桌面、云电脑、Windows 云服务器等通常**不支持硬件虚拟化（Hyper-V / WSL2）**，而 ClawWin 依赖此功能。如果你只有云服务器，建议直接在 Linux 上部署 [OpenClaw](https://github.com/openclaw/openclaw) 原版。
 
 That's it. ClawWin handles the rest.
 
