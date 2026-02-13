@@ -1,52 +1,60 @@
 # ClawWin
 
-**A Windows desktop app that makes running your own AI assistant dead simple.**
-
-**一个让你在 Windows 上轻松跑自己 AI 助手的桌面应用。**
-
----
-
-## What is this? / 这是啥？
-
-ClawWin is a graphical interface for [OpenClaw](https://github.com/openclaw/openclaw) on Windows. OpenClaw is an open-source personal AI assistant that connects to your messaging apps (WhatsApp, Telegram, Slack, Discord, etc.). ClawWin wraps it up in a nice Windows app so you don't have to mess with command lines.
-
-ClawWin 是 [OpenClaw](https://github.com/openclaw/openclaw) 的 Windows 图形界面。OpenClaw 是一个开源的个人 AI 助手，能接入你的聊天软件（微信、Telegram、Slack、Discord 等）。ClawWin 把它包装成一个 Windows 应用，让你不用折腾命令行。
-
-## What can it do? / 能干嘛？
-
-- **Setup Wizard** - Step-by-step guide to get everything running, no tech knowledge needed
-- **Dashboard** - See your AI assistant's status, start/stop/restart it with one click
-- **WSL2 Integration** - Automatically sets up Linux environment inside Windows (or runs natively)
-- **Multi-channel** - Configure connections to WhatsApp, Telegram, Slack, Discord, and more
-- **AI Provider Selection** - Pick your AI backend: Anthropic Claude, OpenAI, Google Gemini, Moonshot, etc.
-- **System Tray** - Runs quietly in the background, always accessible from the taskbar
-- **Bilingual UI** - English and Chinese interface, auto-detected from your system language
+> **One-click install OpenClaw on Windows. No command line. No hassle.**
+>
+> **Windows 上一键安装 OpenClaw。不用命令行，不用折腾。**
 
 ---
 
-- **安装向导** - 一步一步引导你完成配置，不需要技术背景
-- **控制面板** - 查看 AI 助手状态，一键启动 / 停止 / 重启
-- **WSL2 集成** - 自动在 Windows 里搭建 Linux 环境（也可以原生运行）
-- **多渠道接入** - 配置 WhatsApp、Telegram、Slack、Discord 等聊天平台
-- **AI 服务商选择** - 选你喜欢的 AI：Anthropic Claude、OpenAI、Google Gemini、Moonshot 等
-- **系统托盘** - 安静地在后台运行，随时从任务栏访问
-- **中英双语界面** - 根据系统语言自动切换
+## Why ClawWin? / 为什么需要 ClawWin？
 
-## Requirements / 系统要求
+[OpenClaw](https://github.com/openclaw/openclaw) is a powerful open-source AI assistant that connects to WhatsApp, Telegram, Slack, Discord and more. But there's a problem:
 
-- Windows 10/11
-- Administrator privileges (for WSL2 setup) / 管理员权限（用于安装 WSL2）
-- Node.js >= 22 (if building from source) / Node.js >= 22（从源码构建时需要）
+**OpenClaw was not built for Windows.** Installing it requires Linux, a bunch of command-line steps, and manual configuration. Most Windows users give up before they even get started.
 
-## Quick Start / 快速开始
+**ClawWin fixes that.** Double-click the installer, follow the wizard, done. Everything just works.
 
-### Install from Release / 从发布版安装
+---
 
-Download the latest `.exe` installer from [Releases](https://github.com/wk42worldworld/clawwin/releases), run it, and follow the setup wizard.
+[OpenClaw](https://github.com/openclaw/openclaw) 是一个强大的开源 AI 助手，能接入 WhatsApp、Telegram、Slack、Discord 等聊天平台。但有个问题：
 
-从 [Releases](https://github.com/wk42worldworld/clawwin/releases) 下载最新的 `.exe` 安装包，运行后跟着向导走就行。
+**OpenClaw 原版不支持 Windows。** 安装需要 Linux 环境，一堆命令行操作，还要手动改配置文件。大多数 Windows 用户还没开始就放弃了。
 
-### Build from Source / 从源码构建
+**ClawWin 解决了这个问题。** 双击安装包，跟着向导点几下，搞定。全程不需要敲一行命令。
+
+---
+
+## What You Get / 你能得到什么
+
+| Without ClawWin / 没有 ClawWin | With ClawWin / 有了 ClawWin |
+|---|---|
+| Manually install WSL2, configure Linux / 手动装 WSL2、配 Linux | Automatic, one-click setup / 全自动一键搞定 |
+| Edit config files in terminal / 在终端里改配置文件 | Friendly setup wizard / 友好的安装向导 |
+| Run commands to start/stop / 敲命令启动停止 | Click a button / 点个按钮 |
+| No idea if it's running / 不知道跑没跑起来 | Dashboard shows real-time status / 面板实时显示状态 |
+| Google how to set up each channel / 搜索怎么配每个聊天渠道 | Built-in UI for all channels / 内置所有渠道配置界面 |
+
+## Features / 功能一览
+
+- **Setup Wizard** - Guides you through everything step by step, zero tech knowledge required / **安装向导** - 一步步引导，零技术门槛
+- **One-click Start/Stop** - Manage your AI assistant like any other app / **一键启停** - 像管理普通软件一样管理 AI 助手
+- **Channel Config UI** - Connect WhatsApp, Telegram, Slack, Discord, Signal, Feishu and more through a visual interface / **渠道配置界面** - 通过可视化界面接入 WhatsApp、Telegram、Slack、Discord、Signal、飞书等
+- **AI Provider Selection** - Choose from Claude, GPT, Gemini, Kimi, Ollama (local) and more / **AI 服务商选择** - Claude、GPT、Gemini、Kimi、Ollama（本地）等随你挑
+- **Skills Marketplace** - Browse and install community plugins with one click / **技能市场** - 一键浏览安装社区插件
+- **System Tray** - Runs quietly in the background / **系统托盘** - 安静地在后台运行
+- **Bilingual** - English & Chinese UI, auto-detected / **中英双语** - 根据系统语言自动切换
+
+## Install / 安装
+
+### Option 1: Download the installer (Recommended)
+
+Download the latest `.exe` from [Releases](https://github.com/wk42worldworld/clawwin/releases), run it, follow the wizard.
+
+### 方式一：下载安装包（推荐）
+
+从 [Releases](https://github.com/wk42worldworld/clawwin/releases) 下载最新的 `.exe` 安装包，双击运行，跟着向导走。
+
+### Option 2: Build from source
 
 ```bash
 git clone https://github.com/wk42worldworld/clawwin.git
@@ -55,71 +63,23 @@ npm install
 npm start
 ```
 
-To build the Windows installer:
-
-构建 Windows 安装包：
+### 方式二：从源码构建
 
 ```bash
-npm run dist
+git clone https://github.com/wk42worldworld/clawwin.git
+cd clawwin
+npm install
+npm start
 ```
 
-### Development / 开发模式
+## Requirements / 系统要求
 
-```bash
-npm run dev
-```
+- Windows 10 / 11
+- Administrator privileges / 管理员权限
 
-## How it Works / 工作原理
+That's it. ClawWin handles the rest.
 
-```
-┌─────────────────────────────────┐
-│         ClawWin (Electron)      │  <-- What you see / 你看到的界面
-│  ┌───────────┐  ┌────────────┐  │
-│  │  Wizard   │  │ Dashboard  │  │
-│  └───────────┘  └────────────┘  │
-└────────────┬────────────────────┘
-             │ manages / 管理
-             ▼
-┌─────────────────────────────────┐
-│     OpenClaw Gateway            │  <-- The brain / AI 大脑
-│  (runs in WSL2 or natively)     │
-└────────────┬────────────────────┘
-             │ connects to / 连接
-             ▼
-┌─────────────────────────────────┐
-│  WhatsApp / Telegram / Slack    │  <-- Your chat apps / 你的聊天软件
-│  Discord / Signal / ...         │
-└─────────────────────────────────┘
-```
-
-ClawWin handles the Windows side of things: it sets up WSL2, installs OpenClaw inside it, and gives you a dashboard to control everything. The actual AI work is done by the OpenClaw gateway running underneath.
-
-ClawWin 负责 Windows 端的事情：配置 WSL2、在里面安装 OpenClaw、给你一个控制面板来管理一切。实际的 AI 工作由底下运行的 OpenClaw 网关完成。
-
-## Project Structure / 项目结构
-
-```
-src/
-├── main/              # Electron main process / 主进程
-│   ├── index.ts       # App entry point / 应用入口
-│   ├── wsl-manager.ts # WSL2 management / WSL2 管理
-│   ├── native-manager.ts # Native Windows backend / 原生后端
-│   ├── ipc-handlers.ts   # Frontend-backend communication / 前后端通信
-│   └── tray.ts        # System tray / 系统托盘
-├── preload/           # Electron preload / 预加载脚本
-└── renderer/          # Frontend UI / 前端界面
-    ├── index.html     # Dashboard / 控制面板
-    ├── wizard.html    # Setup wizard / 安装向导
-    ├── styles.css     # Styles / 样式
-    └── i18n.js        # Translations / 翻译
-```
-
-## Tech Stack / 技术栈
-
-- **Electron** - Desktop framework / 桌面框架
-- **TypeScript** - Language / 编程语言
-- **Node.js** - Runtime / 运行时
-- **electron-builder** - Packaging / 打包工具
+就这些。剩下的 ClawWin 全帮你搞定。
 
 ## License / 许可
 
